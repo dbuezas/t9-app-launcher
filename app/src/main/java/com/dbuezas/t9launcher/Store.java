@@ -330,7 +330,7 @@ final class Store {
         }
         // Forget usage of removed apps; delete their icons.
         if (usage.keySet().retainAll(keys)) saveUsage();
-        bg.post(() -> {
+        iconBg.post(() -> { // same thread as the icon writes, so it never deletes one mid-write
             File[] files = iconDir.listFiles();
             if (files != null) for (File f : files) if (!iconNames.contains(f.getName())) f.delete();
         });
