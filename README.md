@@ -2,18 +2,19 @@
 
 A tiny Android app launcher that does one thing: find an app (or a settings page) with a T9 keypad and open it.
 
-| Recent apps | `6277` → Maps | `46` → **G**mail, **Go**ogle… |
-|---|---|---|
-| <img src="docs/empty.png" width="260"> | <img src="docs/maps.png" width="260"> | <img src="docs/go.png" width="260"> |
+| Recent apps | `6277` → Maps | `46` → **G**mail, **Go**ogle… | `2583` → Bluetooth settings |
+|---|---|---|---|
+| <img src="docs/empty.png" width="200"> | <img src="docs/maps.png" width="200"> | <img src="docs/go.png" width="200"> | <img src="docs/blue.png" width="200"> |
 
 I used [AppDialer](https://play.google.com/store/apps/details?id=name.pilgr.appdialer.pro) for years in place of the
-assistant. It is not maintained any more, so I wrote this replacement. It keeps only the T9 app search and focuses on
-speed, size and a small RAM and CPU footprint.
+assistant. It is not maintained any more, so I wrote this replacement. It keeps only the T9 search (apps and settings
+pages) and focuses on speed, size and a small RAM and CPU footprint.
 
-- About 23 KB APK. Plain Java, no libraries, no AndroidX.
+- About 26 KB APK. Plain Java, no libraries, no AndroidX.
 - The whole UI is one custom `View`: no layouts, no adapters.
 - Drawn in software: for a panel this small it is faster than starting a GPU context and uses far less memory.
-- On my Pixel 8: opens in about 30 ms when the process is warm and 90 ms from cold; about 11 MB PSS while open.
+- On my Pixel 8: opens in about 35 ms when the process is warm and 95 ms from cold, with about 18 MB of RAM (see
+  [Performance](#performance)).
 - The app list and the icons are cached on disk, so results show at once, even on a cold start.
 - The app list is only rescanned when Android reports a package change. That check runs in the background on every
   open, so it never delays the panel.
@@ -25,34 +26,34 @@ speed, size and a small RAM and CPU footprint.
 Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with `am start -W` for the time and
 `/proc/<pid>/stat` for the CPU time; RAM is the PSS from `dumpsys meminfo`.
 
-| | AppDialer Pro 7.5.1 | T9 App Launcher 1.0.0 | T9 App Launcher 1.1.0 |
-|---|---:|---:|---:|
-| APK size | 2,203 KB | 21 KB | **23 KB** |
-| Cold open, time | 124 ms | 105 ms | **96 ms** |
-| Cold open, CPU time | 250 ms | 170 ms | **50 ms** |
-| Warm open, time | 61 ms | 54 ms | **42 ms** |
-| Warm open, CPU time | 90 ms | 30 ms | **20 ms** |
-| RAM while open | 119 MB | 36 MB | **18 MB** |
-| RAM after close | 57 MB | 22 MB | **19 MB** |
+| | AppDialer Pro 7.5.1 | T9 App Launcher 1.0.0 | T9 App Launcher 1.1.0 | `main` |
+|---|---:|---:|---:|---:|
+| APK size | 2,203 KB | 21 KB | 23 KB | 26 KB |
+| Cold open, time | 124 ms | 105 ms | 96 ms | 93 ms |
+| Cold open, CPU time | 250 ms | 170 ms | 50 ms | 50 ms |
+| Warm open, time | 61 ms | 54 ms | 42 ms | 35 ms |
+| Warm open, CPU time | 90 ms | 30 ms | 20 ms | 20 ms |
+| RAM while open | 119 MB | 36 MB | 18 MB | 18 MB |
+| RAM after close | 57 MB | 22 MB | 19 MB | 21 MB |
 
 "Cold" means the process was not running; "warm" means it was still in memory.
 
 ## How it works
 
 - Type with the keypad (`2`–`9`). `C` clears; on an empty query it closes the panel.
-- An app matches when the keys match:
+- An app or settings page matches when the keys match:
   - the start of its name (`432` → **Hea**rts),
   - the start of any word (`6277` → Google **Maps**),
   - the first letters of words (`46` → **G**oogle **M**aps), or
   - any part of its name (3 or more keys).
 - The matched letters are shown in blue.
-- The apps I opened most recently from here come first.
-- Tap an app to open it. Long-press it to open its App info.
+- What I opened most recently from here comes first; then the best matches, apps before settings pages.
+- Tap a result to open it. Long-press an app to open its App info.
 - Apps from the work profile are included.
 - Settings pages are searchable too, read from the phone's own Settings app: every page it lets other apps open, with
-  its translated title (about 160 on my Pixel 8). The words of the page's internal name are searchable as well, so
-  `blue` finds the Bluetooth page even where it is titled "Devices". Settings pages appear in the empty panel only
-  once you used them.
+  its translated title (about 160 on my Pixel 8). Pages that need an app to be chosen first are left out. The words of
+  the page's internal class name are searchable as well: Pixel titles the Bluetooth page "Devices", but `blue` finds it
+  and shows it as **Blue**tooth. Settings pages appear in the empty panel only once you used them.
 - Long names wrap to a second line at any character, so no space is lost to word wrapping.
 
 ## Open it with the assistant gesture
