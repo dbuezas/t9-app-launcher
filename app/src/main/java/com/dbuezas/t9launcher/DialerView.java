@@ -327,8 +327,8 @@ final class DialerView extends View implements Store.Listener {
     }
 
     /**
-     * Label in up to two centered lines, broken at any character (no space wasted on word
-     * wrapping); the second line is ellipsized. Matched letters are drawn in the accent color.
+     * Label in up to two centered lines: broken between words when that fits, else at any
+     * character (no space wasted); the second line is ellipsized. Matched letters are drawn in the accent color.
      */
     private void drawLabel(Canvas c, App a, float x, float max) {
         a.highlight(query, qlen, version);
@@ -345,6 +345,16 @@ final class DialerView extends View implements Store.Listener {
                 ln.end1 = len;
                 ln.line2 = null;
             } else {
+                // Prefer a word break (at a space or after a hyphen) when the rest then fits on
+                // line 2; otherwise break at any character, which fits the most text.
+                for (int i = k; i > 0; i--) {
+                    boolean space = l.charAt(i) == ' ', hyphen = l.charAt(i - 1) == '-';
+                    if (!space && !hyphen) continue;
+                    int s2 = i;
+                    while (s2 < len && l.charAt(s2) == ' ') s2++;
+                    if (labelPaint.measureText(l, s2, len) <= max) k = i;
+                    break;
+                }
                 int e1 = k;
                 while (e1 > 0 && l.charAt(e1 - 1) == ' ') e1--;
                 int s2 = k;

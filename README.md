@@ -55,7 +55,8 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
   its translated title (about 160 on my Pixel 8). Pages that need an app to be chosen first are left out. The words of
   the page's internal class name are searchable as well: Pixel titles the Bluetooth page "Devices", but `blue` finds it
   and shows it as **Blue**tooth. Settings pages appear in the empty panel only once you used them.
-- Long names wrap to a second line at any character, so no space is lost to word wrapping.
+- Long names wrap to a second line between words when the rest then fits; otherwise at any character, so as much of
+  the name as possible is shown.
 
 ## Open it with the assistant gesture
 
