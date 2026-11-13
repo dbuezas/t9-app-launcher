@@ -28,7 +28,7 @@ final class DialerView extends View implements Store.Listener {
     private static final String[] DIGITS = {"C", "12", "3", "4", "5", "6", "7", "8", "90"};
     private static final String[] LETTERS = {"CLEAR", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ"};
     private static final long LONG_PRESS_MS = 450;
-    private static final int RESULTS_DP = 134, KEY_DP = 68, MAX_W_DP = 320, SIDE_DP = 24;
+    private static final int RESULTS_DP = 124, KEY_DP = 68, MAX_W_DP = 320, SIDE_DP = 24;
 
     // Theme colors: follow the system light/dark mode.
     private final int bg, text, dim, accent, press;
@@ -284,8 +284,8 @@ final class DialerView extends View implements Store.Listener {
                 float pr = Math.min(keyW, keyH) / 2 - 2 * dp;
                 c.drawCircle(cx, y + keyH / 2, pr, linePaint);
             }
-            c.drawText(DIGITS[k], cx, y + keyH * 0.48f, digitPaint);
-            c.drawText(LETTERS[k], cx, y + keyH * 0.80f, letterPaint);
+            c.drawText(DIGITS[k], cx, y + keyH * 0.44f, digitPaint);
+            c.drawText(LETTERS[k], cx, y + keyH * 0.78f, letterPaint);
         }
         c.drawPath(outside, clearPaint);
     }
@@ -323,7 +323,7 @@ final class DialerView extends View implements Store.Listener {
         // Scroll bar: a faint track and a thumb showing the visible part of the row.
         float total = n * cellW, view = panelR - panelL;
         if (total > view) {
-            float sy = resultsB - 6 * dp, inset = 24 * dp, track = view - 2 * inset;
+            float sy = resultsB - 4 * dp, inset = 24 * dp, track = view - 2 * inset;
             linePaint.setColor((dim & 0x00FFFFFF) | 0x33000000);
             c.drawLine(panelL + inset, sy, panelR - inset, sy, linePaint);
             float bw = Math.max(20 * dp, track * view / total);
