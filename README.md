@@ -2,6 +2,10 @@
 
 A tiny Android app launcher that does one thing: find an app with a T9 keypad and open it.
 
+| Recent apps | `6277` → Maps | `46` → **G**mail, **Go**ogle… |
+|---|---|---|
+| <img src="docs/empty.png" width="260"> | <img src="docs/maps.png" width="260"> | <img src="docs/go.png" width="260"> |
+
 I used [AppDialer](https://play.google.com/store/apps/details?id=name.pilgr.appdialer.pro) for years in place of the
 assistant. It is not maintained any more, so I wrote this replacement. It keeps only the T9 app search and focuses on
 speed, size and a small RAM and CPU footprint.
@@ -14,6 +18,23 @@ speed, size and a small RAM and CPU footprint.
 - On a cold start the app list is only rescanned when Android reports a package change.
 - Only the icons on screen are loaded; at most 48 stay in memory (8 once the panel is closed).
 - No permissions, no network.
+
+## Performance
+
+Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with `am start -W` for the time and
+`/proc/<pid>/stat` for the CPU time; RAM is the PSS from `dumpsys meminfo`.
+
+| | AppDialer Pro 7.5.1 | T9 App Launcher 1.0.0 | T9 App Launcher 1.1.0 |
+|---|---:|---:|---:|
+| APK size | 2,203 KB | 21 KB | **23 KB** |
+| Cold open, time | 124 ms | 105 ms | **96 ms** |
+| Cold open, CPU time | 250 ms | 170 ms | **50 ms** |
+| Warm open, time | 61 ms | 54 ms | **42 ms** |
+| Warm open, CPU time | 90 ms | 30 ms | **20 ms** |
+| RAM while open | 119 MB | 36 MB | **18 MB** |
+| RAM after close | 57 MB | 22 MB | **19 MB** |
+
+"Cold" means the process was not running; "warm" means it was still in memory.
 
 ## How it works
 
