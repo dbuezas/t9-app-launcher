@@ -13,7 +13,7 @@ pages) and focuses on speed, size and a small RAM and CPU footprint.
 - About 26 KB APK. Plain Java, no libraries, no AndroidX.
 - The whole UI is one custom `View`: no layouts, no adapters.
 - Drawn in software: for a panel this small it is faster than starting a GPU context and uses far less memory.
-- On my Pixel 8: opens in about 35 ms when the process is warm and 95 ms from cold, with about 18 MB of RAM (see
+- On my Pixel 8: opens in about 40 ms when the process is warm and 100 ms from cold, with about 19 MB of RAM (see
   [Performance](#performance)).
 - The app list and the icons are cached on disk, so results show at once, even on a cold start.
 - The app list is only rescanned when Android reports a package change. That check runs in the background on every
@@ -26,17 +26,20 @@ pages) and focuses on speed, size and a small RAM and CPU footprint.
 Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with `am start -W` for the time and
 `/proc/<pid>/stat` for the CPU time; RAM is the PSS from `dumpsys meminfo`.
 
-| | AppDialer Pro 7.5.1 | T9 App Launcher 1.0.0 | T9 App Launcher 1.1.0 | T9 App Launcher 1.2.0 |
-|---|---:|---:|---:|---:|
-| APK size | 2,203 KB | 21 KB | 23 KB | 26 KB |
-| Cold open, time | 124 ms | 105 ms | 96 ms | 93 ms |
-| Cold open, CPU time | 250 ms | 170 ms | 50 ms | 50 ms |
-| Warm open, time | 61 ms | 54 ms | 42 ms | 35 ms |
-| Warm open, CPU time | 90 ms | 30 ms | 20 ms | 20 ms |
-| RAM while open | 119 MB | 36 MB | 18 MB | 18 MB |
-| RAM after close | 57 MB | 22 MB | 19 MB | 21 MB |
+| | AppDialer Pro 7.5.1 | T9 App Launcher 1.0.0 | T9 App Launcher 1.1.0 | T9 App Launcher 1.2.0 | T9 App Launcher 1.6.0 |
+|---|---:|---:|---:|---:|---:|
+| APK size | 2,203 KB | 21 KB | 23 KB | 26 KB | 26 KB |
+| Cold open, time | 124 ms | 105 ms | 96 ms | 93 ms | 103 ms |
+| Cold open, CPU time | 250 ms | 170 ms | 50 ms | 50 ms | 50 ms |
+| Warm open, time | 61 ms | 54 ms | 42 ms | 35 ms | 38 ms |
+| Warm open, CPU time | 90 ms | 30 ms | 20 ms | 20 ms | 20 ms |
+| RAM while open | 119 MB | 36 MB | 18 MB | 18 MB | 19 MB |
+| RAM after close | 57 MB | 22 MB | 19 MB | 21 MB | 22 MB |
 
 "Cold" means the process was not running; "warm" means it was still in memory.
+
+Since 1.3.0 the panel also reads the settings pages. When it rescans (after an app is installed or updated), RAM
+goes up for that one open, while it reads the Settings app, and goes down again when the panel closes.
 
 ## How it works
 
