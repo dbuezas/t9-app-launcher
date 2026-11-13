@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 3x3 keypad dots, the middle one blue. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFE8EAED"
+        android:pathData="M36,36m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0M54,36m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0M72,36m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0M36,54m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0M72,54m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0M36,72m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0M54,72m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0M72,72m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+    <path android:fillColor="#FF4C9AFF"
+        android:pathData="M54,54m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+</vector>
