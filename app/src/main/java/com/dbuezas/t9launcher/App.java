@@ -170,7 +170,9 @@ final class App {
     /**
      * Match quality, lower is better; -1 = no match.
      * 0 name starts with query, 1 a word starts with query (may run into the next words),
-     * 2 query is a chain of word prefixes ("gm" -> Google Maps), 3 substring (3+ digits).
+     * 2 query is a chain of prefixes of the first words ("gm" -> Google Maps), 3 substring of one word (3+ digits).
+     * The alias (settings class-name words) only takes part in 1: it is a fallback for renamed
+     * pages ("blue" -> Bluetooth), not a source of loose matches.
      */
     int match(char[] q, int n) {
         if (n == 0) return 0;
@@ -178,37 +180,39 @@ final class App {
         if (at(0, q, n)) return 0;
         for (int i = 1; i < ws.length; i++) if (at(ws[i], q, n)) return 1;
         if (chain0(q, n, null)) return 2;
-        if (n >= 3) for (int s = 1; s + n <= codes.length; s++) if (at(s, q, n)) return 3;
+        if (n >= 3) for (int s = 1; s + n <= splitCode; s++) if (inWord(s, n) && at(s, q, n)) return 3;
         return -1;
+    }
+
+    /** Is codes[s, s+n) inside one word? Substring matches never run across words ("o app"). */
+    private boolean inWord(int s, int n) {
+        for (int w : ws) if (w > s && w < s + n) return false;
+        return true;
     }
 
     private int wordEnd(int w) {
         return w + 1 < ws.length ? ws[w + 1] : codes.length;
     }
 
-    /** Chain over the label words, then over the alias words; never across both. */
+    /** Chain over the label words, from the first word on. */
     private boolean chain0(char[] q, int n, boolean[] mark) {
         java.util.Arrays.fill(FAIL, 0, n + 1, 0);
-        if (chain(q, n, 0, 0, splitWord, mark)) return true;
-        if (splitWord >= ws.length) return false;
-        java.util.Arrays.fill(FAIL, 0, n + 1, 0);
-        return chain(q, n, 0, splitWord, ws.length, mark);
+        return chain(q, n, 0, 0, splitWord, mark);
     }
 
     /**
-     * Can q[qi..] be covered by prefixes of words w, w+1.. < lim (words may be skipped)?
+     * Can q[qi..] be covered by a prefix of word w, then of word w+1, ... (< lim), no word skipped?
      * Memoized, so it stays O(query * words * wordLength) even for pathological names.
      */
     private boolean chain(char[] q, int n, int qi, int w, int lim, boolean[] mark) {
         if (qi == n) return true;
+        if (w >= lim) return false;
         if (w < 64 && (FAIL[qi] & (1L << w)) != 0) return false;
-        for (int wi = w; wi < lim; wi++) {
-            int s = ws[wi], e = wordEnd(wi);
-            for (int l = 0; s + l < e && qi + l < n && codes[s + l] == q[qi + l]; l++) {
-                if (chain(q, n, qi + l + 1, wi + 1, lim, mark)) {
-                    if (mark != null) for (int k = 0; k <= l; k++) mark[pos[s + k]] = true;
-                    return true;
-                }
+        int s = ws[w], e = wordEnd(w);
+        for (int l = 0; s + l < e && qi + l < n && codes[s + l] == q[qi + l]; l++) {
+            if (chain(q, n, qi + l + 1, w + 1, lim, mark)) {
+                if (mark != null) for (int k = 0; k <= l; k++) mark[pos[s + k]] = true;
+                return true;
             }
         }
         if (w < 64) FAIL[qi] |= 1L << w;
@@ -229,7 +233,7 @@ final class App {
             chain0(q, n, hl);
             return;
         } else {
-            for (int s = 1; s + n <= codes.length; s++) if (at(s, q, n)) { start = s; break; }
+            for (int s = 1; s + n <= splitCode; s++) if (inWord(s, n) && at(s, q, n)) { start = s; break; }
         }
         if (start >= 0) for (int k = 0; k < n; k++) hl[pos[start + k]] = true;
     }

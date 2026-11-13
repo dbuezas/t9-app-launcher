@@ -45,16 +45,17 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
 - An app or settings page matches when the keys match:
   - the start of its name (`432` → **Hea**rts),
   - the start of any word (`6277` → Google **Maps**),
-  - the first letters of words (`46` → **G**oogle **M**aps), or
-  - any part of its name (3 or more keys).
+  - the starts of its words in order, from the first word, none skipped (`46` → **G**oogle **M**aps,
+    `476` → **G**oogle **P**lay **M**usic), or
+  - any part of one word (3 or more keys: `2583` → Ex**clud**e).
 - The matched letters are shown in blue.
 - What I opened most recently from here comes first; then the best matches, apps before settings pages.
 - Tap a result to open it. Long-press an app to open its App info.
 - Apps from the work profile are included.
 - Settings pages are searchable too, read from the phone's own Settings app: every page it lets other apps open, with
   its translated title (about 160 on my Pixel 8). Pages that need an app to be chosen first are left out. The words of
-  the page's internal class name are searchable as well: Pixel titles the Bluetooth page "Devices", but `blue` finds it
-  and shows it as **Blue**tooth. Settings pages appear in the empty panel only once you used them.
+  the page's internal class name count too, but only when one of them starts with what you typed: Pixel titles the
+  Bluetooth page "Devices", but `blue` finds it and shows it as **Blue**tooth. Settings pages appear in the empty panel only once you used them.
 - Long names wrap to a second line between words when the rest then fits; otherwise at any character, so as much of
   the name as possible is shown.
 
