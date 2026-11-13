@@ -55,9 +55,14 @@ final class DialerView extends View implements Store.Listener {
     private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint digitPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint letterPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint labelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final android.text.TextPaint labelPaint = new android.text.TextPaint(Paint.ANTI_ALIAS_FLAG);
     private final Paint linePaint = new Paint();
     private final Paint iconPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final Paint clearPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint fadeL = new Paint(), fadeR = new Paint();
+    private float fadeW;
+    /** Everything outside the rounded card: cleared last, so scrolled icons never show in the corners. */
+    private final android.graphics.Path outside = new android.graphics.Path();
     private final RectF tmpF = new RectF();
     private final Rect tmp = new Rect();
     private final OverScroller scroller;
@@ -108,6 +113,7 @@ final class DialerView extends View implements Store.Listener {
         labelPaint.setTextAlign(Paint.Align.LEFT);
         linePaint.setStrokeWidth(3 * dp);
         linePaint.setStrokeCap(Paint.Cap.ROUND);
+        clearPaint.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR));
         setHapticFeedbackEnabled(true);
         search();
     }
@@ -131,13 +137,16 @@ final class DialerView extends View implements Store.Listener {
 
     private void search() {
         App[] apps = store.apps;
-        double now = System.currentTimeMillis() / 1000.0;
         results.clear();
+        // The list may change under a finger: never launch a stale index.
+        removeCallbacks(longPress);
+        pressedResult = -1;
+        if (touch == T_RESULT) touch = T_NONE;
         for (App a : apps) {
             int t = a.match(query, qlen);
             a.tier = t;
             if (t < 0) continue;
-            a.rank = Store.rank(a, now);
+            a.rank = Store.rank(a);
             results.add(a);
         }
         Collections.sort(results, ORDER);
@@ -194,8 +203,19 @@ final class DialerView extends View implements Store.Listener {
         resultsB = RESULTS_DP * dp;
         keyW = panelW / 3;
         keyH = (h - resultsB) / 3;
+        float r = 28 * dp;
+        outside.reset();
+        outside.addRect(0, 0, w, h, android.graphics.Path.Direction.CW);
+        android.graphics.Path card = new android.graphics.Path();
+        card.addRoundRect(0, 0, w, h, r, r, android.graphics.Path.Direction.CW);
+        outside.op(card, android.graphics.Path.Op.DIFFERENCE);
+        // Edge fades: the app cut by the scroll edge melts into the card.
+        fadeW = 32 * dp;
+        int clear = bg & 0x00FFFFFF;
+        fadeL.setShader(new android.graphics.LinearGradient(0, 0, fadeW, 0, bg, clear, android.graphics.Shader.TileMode.CLAMP));
+        fadeR.setShader(new android.graphics.LinearGradient(w - fadeW, 0, w, 0, clear, bg, android.graphics.Shader.TileMode.CLAMP));
         cellW = panelW / 3.5f; // the half app shows the row scrolls
-        iconSize = 56 * dp;
+        iconSize = store.iconPx; // drawn 1:1, no scaling
         labelY = panelT + 12 * dp + iconSize + 24 * dp;
         clampScroll();
     }
@@ -248,6 +268,7 @@ final class DialerView extends View implements Store.Listener {
             c.drawText(DIGITS[k], cx, y + keyH * 0.48f, digitPaint);
             c.drawText(LETTERS[k], cx, y + keyH * 0.80f, letterPaint);
         }
+        c.drawPath(outside, clearPaint);
     }
 
     private void drawResults(Canvas c) {
@@ -273,11 +294,12 @@ final class DialerView extends View implements Store.Listener {
             float ix = x + (cellW - iconSize) / 2, iy = panelT + 12 * dp;
             store.requestIcon(a);
             if (a.icon != null) {
-                tmpF.set(ix, iy, ix + iconSize, iy + iconSize);
-                c.drawBitmap(a.icon, null, tmpF, iconPaint);
+                c.drawBitmap(a.icon, Math.round(ix), Math.round(iy), iconPaint);
             }
             drawLabel(c, a, x, textMax);
         }
+        if (scrollX > 0) c.drawRect(panelL, panelT, panelL + fadeW, resultsB, fadeL);
+        if (scrollX < maxScroll()) c.drawRect(panelR - fadeW, panelT, panelR, resultsB, fadeR);
         c.restore();
         // Scroll hint: a thin bar showing the visible part of the row.
         float total = n * cellW, view = panelR - panelL;
@@ -294,7 +316,7 @@ final class DialerView extends View implements Store.Listener {
     /** Label centered in its cell, ellipsized, with the matched letters in blue. */
     private void drawLabel(Canvas c, App a, float x, float max) {
         if (a.shown == null || a.shownFor != max) {
-            a.shown = TextUtils.ellipsize(a.label, new android.text.TextPaint(labelPaint), max, TextUtils.TruncateAt.END).toString();
+            a.shown = TextUtils.ellipsize(a.label, labelPaint, max, TextUtils.TruncateAt.END).toString();
             a.shownFor = max;
         }
         String s = a.shown;
@@ -403,11 +425,11 @@ final class DialerView extends View implements Store.Listener {
     private void onLongPress() {
         if (touch != T_RESULT || pressedResult < 0) return;
         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-        App a = results.get(pressedResult);
+        int i = pressedResult;
         touch = T_NONE;
         pressedResult = -1;
         invalidate();
-        act.showInfo(a, bounds(results.indexOf(a)));
+        act.showInfo(results.get(i), bounds(i));
     }
 
     private Rect bounds(int i) {

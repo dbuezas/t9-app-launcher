@@ -9,6 +9,8 @@ import java.text.Normalizer;
 /** One launchable activity plus its precomputed T9 index. */
 final class App {
     private static final String T9 = "22233344455566677778889999";
+    /** chain() failure memo: bit w of FAIL[qi] = "q[qi..] can't start at word w". Main thread only. */
+    private static final long[] FAIL = new long[65];
 
     final String key;          // "pkg/.Activity#userSerial", used for usage stats and icon cache
     final ComponentName cn;
@@ -111,7 +113,7 @@ final class App {
         if (ws.length == 0) return -1;
         if (at(0, q, n)) return 0;
         for (int i = 1; i < ws.length; i++) if (at(ws[i], q, n)) return 1;
-        if (chain(q, n, 0, 0, null)) return 2;
+        if (chain0(q, n, null)) return 2;
         if (n >= 3) for (int s = 1; s + n <= codes.length; s++) if (at(s, q, n)) return 3;
         return -1;
     }
@@ -120,9 +122,18 @@ final class App {
         return w + 1 < ws.length ? ws[w + 1] : codes.length;
     }
 
-    /** Can q[qi..] be covered by prefixes of words w, w+1.. (words may be skipped)? */
+    private boolean chain0(char[] q, int n, boolean[] mark) {
+        java.util.Arrays.fill(FAIL, 0, n + 1, 0);
+        return chain(q, n, 0, 0, mark);
+    }
+
+    /**
+     * Can q[qi..] be covered by prefixes of words w, w+1.. (words may be skipped)?
+     * Memoized, so it stays O(query * words * wordLength) even for pathological names.
+     */
     private boolean chain(char[] q, int n, int qi, int w, boolean[] mark) {
         if (qi == n) return true;
+        if (w < 64 && (FAIL[qi] & (1L << w)) != 0) return false;
         for (int wi = w; wi < ws.length; wi++) {
             int s = ws[wi], e = wordEnd(wi);
             for (int l = 0; s + l < e && qi + l < n && codes[s + l] == q[qi + l]; l++) {
@@ -132,6 +143,7 @@ final class App {
                 }
             }
         }
+        if (w < 64) FAIL[qi] |= 1L << w;
         return false;
     }
 
@@ -146,7 +158,7 @@ final class App {
         else if (tier == 1) {
             for (int i = 1; i < ws.length; i++) if (at(ws[i], q, n)) { start = ws[i]; break; }
         } else if (tier == 2) {
-            chain(q, n, 0, 0, hl);
+            chain0(q, n, hl);
             return;
         } else {
             for (int s = 1; s + n <= codes.length; s++) if (at(s, q, n)) { start = s; break; }

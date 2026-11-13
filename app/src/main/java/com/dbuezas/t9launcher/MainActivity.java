@@ -61,7 +61,10 @@ public final class MainActivity extends Activity {
     protected void onStop() {
         super.onStop();
         // Never linger in the background: the next gesture starts clean.
-        if (!isChangingConfigurations()) finish();
+        if (!isChangingConfigurations()) {
+            store.onHidden();
+            finish();
+        }
     }
 
     @Override
