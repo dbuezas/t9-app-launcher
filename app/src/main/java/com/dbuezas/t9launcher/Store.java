@@ -65,6 +65,8 @@ final class Store {
     private final UserManager um;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Handler bg;
+    /** Icons only, so a rescan never makes them wait. Normal priority: they are on screen. */
+    private final Handler iconBg;
     private final File listFile, usageFile, iconDir;
     private final HashMap<String, double[]> usage = new HashMap<>();
     private final LinkedHashMap<App, Boolean> lru = new LinkedHashMap<>(ICON_LRU, 0.75f, true);
@@ -116,6 +118,9 @@ final class Store {
         HandlerThread t = new HandlerThread("bg", Process.THREAD_PRIORITY_BACKGROUND);
         t.start();
         bg = new Handler(t.getLooper());
+        HandlerThread it = new HandlerThread("icons");
+        it.start();
+        iconBg = new Handler(it.getLooper());
 
         readUsage();
         savedHeader = readList();
@@ -397,7 +402,7 @@ final class Store {
         a.iconLoading = true;
         int px = iconPx;
         File f = new File(iconDir, iconName(a));
-        bg.post(() -> {
+        iconBg.post(() -> {
             Bitmap b = BitmapFactory.decodeFile(f.getPath());
             if (b == null) {
                 b = render(a, px);
@@ -424,8 +429,31 @@ final class Store {
         }
     }
 
+    /**
+     * Panel closed: keep only the icons of the apps the next open shows first (the most recently
+     * launched ones), and load any of them that are missing, so the next open draws them at once.
+     */
     void onHidden() {
-        trimIcons(ICON_KEEP);
+        App[] top = new App[ICON_KEEP];
+        int n = 0;
+        for (App a : apps) {
+            if (rank(a) <= 0) continue;
+            int i = n < ICON_KEEP ? n++ : ICON_KEEP;
+            if (i == ICON_KEEP && rank(a) <= rank(top[ICON_KEEP - 1])) continue;
+            if (i == ICON_KEEP) i = ICON_KEEP - 1;
+            for (; i > 0 && rank(top[i - 1]) < rank(a); i--) top[i] = top[i - 1];
+            top[i] = a;
+        }
+        java.util.List<App> keep = java.util.Arrays.asList(top).subList(0, n);
+        Iterator<App> it = lru.keySet().iterator();
+        while (it.hasNext()) {
+            App a = it.next();
+            if (!keep.contains(a)) {
+                a.icon = null;
+                it.remove();
+            }
+        }
+        for (App a : keep) requestIcon(a);
     }
 
     private Bitmap render(App a, int px) {

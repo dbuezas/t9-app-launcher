@@ -18,7 +18,7 @@ pages) and focuses on speed, size and a small RAM and CPU footprint.
 - The app list and the icons are cached on disk, so results show at once, even on a cold start.
 - The app list is only rescanned when Android reports a package change. That check runs in the background on every
   open, so it never delays the panel.
-- Only the icons on screen are loaded; at most 48 stay in memory (8 once the panel is closed).
+- Only the icons on screen are loaded, on their own thread, so a rescan never delays them. At most 48 stay in memory. When the panel closes, it keeps the icons of my 8 most recent apps, so the next open draws them at once.
 - No permissions, no network.
 
 ## Performance
