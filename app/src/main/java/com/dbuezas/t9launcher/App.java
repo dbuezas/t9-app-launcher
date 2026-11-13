@@ -12,10 +12,10 @@ final class App {
     /** chain() failure memo: bit w of FAIL[qi] = "q[qi..] can't start at word w". Main thread only. */
     private static final long[] FAIL = new long[65];
 
-    final String id;           // "pkg/.Activity", or "!" + intent action for a settings page
+    final String id;           // "pkg/.Activity"; "!pkg/.Activity" for a settings page
     final String key;          // id + "#" + userSerial, used for usage stats and icon cache
-    final ComponentName cn;    // null for a settings page
-    final String action;       // non-null for a settings page
+    final ComponentName cn;
+    final boolean setting;     // a page of the Settings app, not a launcher app
     final long serial;
     final UserHandle user;
     final String label;
@@ -38,22 +38,35 @@ final class App {
     double rank;
 
     // Draw cache.
-    String shown;
-    float shownFor;
+    float shownFor;            // label width the split below was made for
+    int end1, start2;          // line 1 = label[0, end1); line 2 = shown2 = label[start2..], ellipsized
+    String shown2;
     final boolean[] hl;
     int hlVersion = -1;
 
     /** From a saved/scanned row. Returns null for a malformed id. */
     static App of(String id, long serial, UserHandle user, String label, long stamp) {
-        if (id.startsWith("!")) return new App(id, null, id.substring(1), serial, user, label, stamp);
-        ComponentName cn = ComponentName.unflattenFromString(id);
-        return cn == null ? null : new App(id, cn, null, serial, user, label, stamp);
+        boolean setting = id.startsWith("!");
+        ComponentName cn = ComponentName.unflattenFromString(setting ? id.substring(1) : id);
+        return cn == null ? null : new App(id, cn, setting, serial, user, label, stamp);
     }
 
-    private App(String id, ComponentName cn, String action, long serial, UserHandle user, String label, long stamp) {
+    /**
+     * Extra search words for a settings page, from its class name:
+     * "Settings$BluetoothSettingsActivity" -> "Bluetooth" (Pixel labels that page "Devices").
+     */
+    private static String alias(ComponentName cn) {
+        String s = cn.getClassName();
+        s = s.substring(Math.max(s.lastIndexOf('.'), s.lastIndexOf('$')) + 1);
+        if (s.endsWith("Activity")) s = s.substring(0, s.length() - 8);
+        if (s.endsWith("Settings")) s = s.substring(0, s.length() - 8);
+        return s;
+    }
+
+    private App(String id, ComponentName cn, boolean setting, long serial, UserHandle user, String label, long stamp) {
         this.id = id;
         this.cn = cn;
-        this.action = action;
+        this.setting = setting;
         this.serial = serial;
         this.user = user;
         this.label = label;
@@ -62,14 +75,16 @@ final class App {
         this.sortKey = label.toLowerCase();
         this.hl = new boolean[label.length()];
 
-        int n = label.length();
+        // Indexed text: the label, then (for settings) the class-name words. Only the label is shown.
+        String text = setting ? label + " " + alias(cn) : label;
+        int n = text.length();
         char[] c = new char[n];
         int[] p = new int[n];
         int[] w = new int[n + 1];
         int len = 0, words = 0;
         int prev = 0; // 0 boundary, 1 lower, 2 upper, 3 digit
         for (int i = 0; i < n; i++) {
-            char ch = label.charAt(i);
+            char ch = text.charAt(i);
             if (ch >= 128 && Character.isLetter(ch)) {
                 // Strip accents: é -> e, ñ -> n.
                 String d = Normalizer.normalize(String.valueOf(ch), Normalizer.Form.NFD);
@@ -149,7 +164,7 @@ final class App {
             int s = ws[wi], e = wordEnd(wi);
             for (int l = 0; s + l < e && qi + l < n && codes[s + l] == q[qi + l]; l++) {
                 if (chain(q, n, qi + l + 1, wi + 1, mark)) {
-                    if (mark != null) for (int k = 0; k <= l; k++) mark[pos[s + k]] = true;
+                    if (mark != null) for (int k = 0; k <= l; k++) if (pos[s + k] < mark.length) mark[pos[s + k]] = true;
                     return true;
                 }
             }
@@ -174,6 +189,6 @@ final class App {
         } else {
             for (int s = 1; s + n <= codes.length; s++) if (at(s, q, n)) { start = s; break; }
         }
-        if (start >= 0) for (int k = 0; k < n; k++) hl[pos[start + k]] = true;
+        if (start >= 0) for (int k = 0; k < n; k++) if (pos[start + k] < hl.length) hl[pos[start + k]] = true;
     }
 }

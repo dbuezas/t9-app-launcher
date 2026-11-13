@@ -49,8 +49,11 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
 - The apps I opened most recently from here come first.
 - Tap an app to open it. Long-press it to open its App info.
 - Apps from the work profile are included.
-- About 60 settings pages are searchable too (Wi-Fi, Bluetooth, Battery, Developer options, Default apps, …), with the
-  Settings icon. Pages the phone does not have are left out. They appear in the empty panel only once you used them.
+- Settings pages are searchable too, read from the phone's own Settings app: every page it lets other apps open, with
+  its translated title (about 160 on my Pixel 8). The words of the page's internal name are searchable as well, so
+  `blue` finds the Bluetooth page even where it is titled "Devices". Settings pages appear in the empty panel only
+  once you used them.
+- Long names wrap to a second line at any character, so no space is lost to word wrapping.
 
 ## Open it with the assistant gesture
 

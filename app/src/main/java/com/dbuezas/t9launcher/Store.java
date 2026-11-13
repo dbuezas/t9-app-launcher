@@ -49,69 +49,12 @@ final class Store {
 
     static final int ICON_DP = 56;
 
-    /** Settings pages that apps may open: {intent action, label}. Missing ones are skipped. */
-    private static final String[] SETTINGS = {
-            "android.settings.WIFI_SETTINGS", "Wi-Fi",
-            "android.settings.BLUETOOTH_SETTINGS", "Bluetooth",
-            "android.settings.AIRPLANE_MODE_SETTINGS", "Airplane mode",
-            "android.settings.WIRELESS_SETTINGS", "Network & internet",
-            "android.settings.NETWORK_OPERATOR_SETTINGS", "Mobile network",
-            "android.settings.DATA_ROAMING_SETTINGS", "Roaming",
-            "android.settings.APN_SETTINGS", "Access point names",
-            "android.settings.DATA_USAGE_SETTINGS", "Data usage",
-            "android.settings.TETHER_SETTINGS", "Hotspot & tethering",
-            "android.settings.VPN_SETTINGS", "VPN",
-            "android.settings.NFC_SETTINGS", "NFC",
-            "android.settings.NFC_PAYMENT_SETTINGS", "Contactless payments",
-            "android.settings.CAST_SETTINGS", "Cast",
-            "android.settings.panel.action.INTERNET_CONNECTIVITY", "Internet panel",
-            "android.settings.panel.action.VOLUME", "Volume panel",
-            "android.settings.DISPLAY_SETTINGS", "Display",
-            "android.settings.NIGHT_DISPLAY_SETTINGS", "Night Light",
-            "android.settings.DARK_THEME_SETTINGS", "Dark theme",
-            "android.settings.AUTO_ROTATE_SETTINGS", "Auto-rotate",
-            "android.settings.DREAM_SETTINGS", "Screen saver",
-            "android.intent.action.SET_WALLPAPER", "Wallpaper",
-            "android.settings.LOCK_SCREEN_SETTINGS", "Lock screen",
-            "android.settings.SOUND_SETTINGS", "Sound & vibration",
-            "android.settings.ZEN_MODE_SETTINGS", "Do Not Disturb",
-            "android.settings.ALL_APPS_NOTIFICATION_SETTINGS", "Notifications",
-            "android.settings.NOTIFICATION_SETTINGS", "Notification settings",
-            "android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS", "Notification access",
-            "android.intent.action.POWER_USAGE_SUMMARY", "Battery",
-            "android.settings.BATTERY_SAVER_SETTINGS", "Battery saver",
-            "android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS", "Battery optimization",
-            "android.settings.INTERNAL_STORAGE_SETTINGS", "Storage",
-            "android.settings.APPLICATION_SETTINGS", "Apps",
-            "android.settings.MANAGE_ALL_APPLICATIONS_SETTINGS", "All apps",
-            "android.settings.MANAGE_DEFAULT_APPS_SETTINGS", "Default apps",
-            "android.settings.HOME_SETTINGS", "Home app",
-            "android.settings.VOICE_INPUT_SETTINGS", "Digital assistant",
-            "android.settings.MANAGE_DOMAIN_URLS", "Opening links",
-            "android.settings.action.MANAGE_OVERLAY_PERMISSION", "Display over other apps",
-            "android.settings.action.MANAGE_WRITE_SETTINGS", "Modify system settings",
-            "android.settings.USAGE_ACCESS_SETTINGS", "Usage access",
-            "android.settings.MANAGE_UNKNOWN_APP_SOURCES", "Install unknown apps",
-            "android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION", "All files access",
-            "android.settings.SAFETY_CENTER", "Security & privacy",
-            "android.settings.SECURITY_SETTINGS", "Security",
-            "android.settings.PRIVACY_SETTINGS", "Privacy",
-            "android.settings.LOCATION_SOURCE_SETTINGS", "Location",
-            "android.settings.SYNC_SETTINGS", "Accounts",
-            "android.settings.ADD_ACCOUNT_SETTINGS", "Add account",
-            "android.settings.USER_SETTINGS", "Users",
-            "android.settings.ACCESSIBILITY_SETTINGS", "Accessibility",
-            "android.settings.CAPTIONING_SETTINGS", "Captions",
-            "android.settings.LOCALE_SETTINGS", "Languages",
-            "android.settings.INPUT_METHOD_SETTINGS", "Keyboards",
-            "android.settings.HARD_KEYBOARD_SETTINGS", "Physical keyboard",
-            "android.settings.USER_DICTIONARY_SETTINGS", "Personal dictionary",
-            "android.settings.DATE_SETTINGS", "Date & time",
-            "android.settings.PRINT_SETTINGS", "Printing",
-            "android.settings.DEVICE_NAME", "Device name",
-            "android.settings.DEVICE_INFO_SETTINGS", "About phone",
-            "android.settings.APPLICATION_DEVELOPMENT_SETTINGS", "Developer options",
-            "android.settings.WEBVIEW_SETTINGS", "WebView implementation",
+    /** Settings activities that need arguments (an app, a channel...) or are not pages. */
+    private static final String[] SETTINGS_SKIP = {
+            "Picker", "Pick", "Choose", "Licen", "Shortcut", "PrintJob", "Editor", "Panel", "Trampoline",
+            "Enroll", "Confirm", "Dialog", "AppInfo", "InstalledApp", "Detail", "Channel", "AppNotification",
+            "AppLocale", "Suggestion", "Setup", "Wizard", "Test", "Dpp", "Handler", "Redaction", "Credential",
+            "Supervision", "Retail", "Warranty", "Onboarding", "Launchpad", "SearchResult", "AddApp", "AdminAdd",
     };
     private static final int ICON_LRU = 48;     // icons kept while the panel is open
     private static final int ICON_KEEP = 8;     // icons kept while it is closed
@@ -300,7 +243,7 @@ final class Store {
             if (list == null) {
                 // Paused work profile: keep its apps, tapping one asks to unpause it.
                 for (App a : before) {
-                    if (a.serial != serial || a.action != null) continue;
+                    if (a.serial != serial || a.setting) continue;
                     rows.add(new String[]{a.id, Long.toString(serial), Long.toString(a.stamp), a.label});
                     rowUsers.add(u);
                 }
@@ -315,16 +258,7 @@ final class Store {
                 rowUsers.add(u);
             }
         }
-        // Settings pages: keep those this phone can open.
-        android.content.pm.PackageManager pm = ctx.getPackageManager();
-        long mySerial = um.getSerialNumberForUser(me);
-        for (int i = 0; i < SETTINGS.length; i += 2) {
-            android.content.pm.ResolveInfo r = pm.resolveActivity(new Intent(SETTINGS[i]), 0);
-            if (r == null || r.activityInfo == null || !r.activityInfo.exported) continue;
-            long stamp = new File(r.activityInfo.applicationInfo.sourceDir).lastModified();
-            rows.add(new String[]{"!" + SETTINGS[i], Long.toString(mySerial), Long.toString(stamp), SETTINGS[i + 1]});
-            rowUsers.add(me);
-        }
+        scanSettings(rows, rowUsers, me);
         String header = stateHeader(seq);
         StringBuilder sb = new StringBuilder(rows.size() * 64).append(header).append('\n');
         for (String[] r : rows) sb.append(r[0]).append('\t').append(r[1]).append('\t').append(r[2]).append('\t').append(r[3]).append('\n');
@@ -332,6 +266,35 @@ final class Store {
         if (!text.equals(readText(listFile))) writeText(listFile, text);
         savedHeader = header;
         main.post(() -> applyScan(rows, rowUsers));
+    }
+
+    /**
+     * Settings pages, read from the phone's Settings app: every exported page with its own
+     * (translated) title. Pages that need arguments are skipped; duplicate titles are dropped.
+     */
+    private void scanSettings(ArrayList<String[]> rows, ArrayList<UserHandle> rowUsers, UserHandle me) {
+        android.content.pm.PackageManager pm = ctx.getPackageManager();
+        try {
+            android.content.pm.ResolveInfo sr = pm.resolveActivity(new Intent(android.provider.Settings.ACTION_SETTINGS), 0);
+            if (sr == null) return;
+            android.content.pm.ApplicationInfo app = sr.activityInfo.applicationInfo;
+            android.content.pm.PackageInfo pi = pm.getPackageInfo(app.packageName, android.content.pm.PackageManager.GET_ACTIVITIES);
+            if (pi.activities == null) return;
+            String appLabel = String.valueOf(pm.getApplicationLabel(app));
+            String serial = Long.toString(um.getSerialNumberForUser(me));
+            String stamp = Long.toString(new File(app.sourceDir).lastModified());
+            HashSet<String> seen = new HashSet<>();
+            outer:
+            for (android.content.pm.ActivityInfo ai : pi.activities) {
+                if (!ai.exported || !ai.enabled || ai.permission != null || ai.labelRes == 0) continue;
+                for (String skip : SETTINGS_SKIP) if (ai.name.contains(skip)) continue outer;
+                String label = String.valueOf(ai.loadLabel(pm)).replace('\t', ' ').replace('\n', ' ').trim();
+                if (label.isEmpty() || label.equals(appLabel) || !seen.add(label)) continue;
+                rows.add(new String[]{"!" + new ComponentName(app.packageName, ai.name).flattenToShortString(), serial, stamp, label});
+                rowUsers.add(me);
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private void applyScan(ArrayList<String[]> rows, ArrayList<UserHandle> users) {
@@ -412,12 +375,12 @@ final class Store {
     }
 
     void startApp(android.app.Activity from, App a, Rect bounds, Bundle opts) {
-        if (a.action != null) from.startActivity(new Intent(a.action), opts);
+        if (a.setting) from.startActivity(new Intent(Intent.ACTION_MAIN).setComponent(a.cn), opts);
         else la.startMainActivity(a.cn, a.user, bounds, opts);
     }
 
     void showAppInfo(App a, Rect bounds) {
-        if (a.action == null) la.startAppDetailsActivity(a.cn, a.user, bounds, null);
+        if (!a.setting) la.startAppDetailsActivity(a.cn, a.user, bounds, null);
     }
 
     // ---------------------------------------------------------------- icons
@@ -470,11 +433,9 @@ final class Store {
     private Bitmap render(App a, int px) {
         try {
             Drawable d;
-            if (a.action != null) {
-                // Settings page: the icon of the app that opens it (the Settings gear).
-                android.content.pm.ResolveInfo r = ctx.getPackageManager().resolveActivity(new Intent(a.action), 0);
-                if (r == null) return null;
-                d = ctx.getPackageManager().getApplicationIcon(r.activityInfo.applicationInfo);
+            if (a.setting) {
+                // Settings page: the Settings app icon.
+                d = ctx.getPackageManager().getApplicationIcon(a.cn.getPackageName());
             } else {
                 LauncherActivityInfo info = la.resolveActivity(
                         new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(a.cn), a.user);

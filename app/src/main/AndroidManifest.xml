@@ -7,10 +7,9 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
-        <!-- To check which settings pages exist. -->
-        <package android:name="com.android.settings" />
+        <!-- To find the Settings app and read its pages. -->
         <intent>
-            <action android:name="android.intent.action.SET_WALLPAPER" />
+            <action android:name="android.settings.SETTINGS" />
         </intent>
     </queries>
 

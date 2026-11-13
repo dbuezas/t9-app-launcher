@@ -28,7 +28,7 @@ final class DialerView extends View implements Store.Listener {
     private static final String[] DIGITS = {"C", "2", "3", "4", "5", "6", "7", "8", "9"};
     private static final String[] LETTERS = {"clear", "abc", "def", "ghi", "jkl", "mno", "pqrs", "tuv", "wxyz"};
     private static final long LONG_PRESS_MS = 450;
-    private static final int RESULTS_DP = 116, KEY_DP = 68, MAX_W_DP = 320, SIDE_DP = 24;
+    private static final int RESULTS_DP = 134, KEY_DP = 68, MAX_W_DP = 320, SIDE_DP = 24;
 
     // Theme colors: follow the system light/dark mode.
     private final int bg, text, dim, accent, press;
@@ -51,7 +51,7 @@ final class DialerView extends View implements Store.Listener {
         // Most recently opened (from this app) first, then match quality.
         if (a.rank != b.rank) return a.rank > b.rank ? -1 : 1;
         if (a.tier != b.tier) return a.tier - b.tier;
-        if ((a.action == null) != (b.action == null)) return a.action == null ? -1 : 1; // apps before settings
+        if (a.setting != b.setting) return a.setting ? 1 : -1; // apps before settings
         return a.sortKey.compareTo(b.sortKey);
     };
 
@@ -75,7 +75,7 @@ final class DialerView extends View implements Store.Listener {
     private final int touchSlop;
 
     // Layout (px).
-    private float panelL, panelR, panelT, resultsB, keyH, keyW, cellW, iconSize, labelY;
+    private float panelL, panelR, panelT, resultsB, keyH, keyW, cellW, iconSize, labelY, lineH;
 
     // Search state.
     private final char[] query = new char[64];
@@ -150,7 +150,7 @@ final class DialerView extends View implements Store.Listener {
         if (touch == T_RESULT) touch = T_NONE;
         for (App a : apps) {
             // Settings pages stay out of the empty list until they were used once.
-            if (qlen == 0 && a.action != null && a.usage == null) continue;
+            if (qlen == 0 && a.setting && a.usage == null) continue;
             int t = a.match(query, qlen);
             a.tier = t;
             if (t < 0) continue;
@@ -224,7 +224,8 @@ final class DialerView extends View implements Store.Listener {
         fadeR.setShader(new android.graphics.LinearGradient(w - fadeW, 0, w, 0, clear, bg, android.graphics.Shader.TileMode.CLAMP));
         cellW = panelW / 3.5f; // the half app shows the row scrolls
         iconSize = store.iconPx; // drawn 1:1, no scaling
-        labelY = panelT + 12 * dp + iconSize + 24 * dp;
+        labelY = panelT + 12 * dp + iconSize + 22 * dp;
+        lineH = 18 * dp;
         clampScroll();
     }
 
@@ -328,26 +329,56 @@ final class DialerView extends View implements Store.Listener {
         }
     }
 
-    /** Label centered in its cell, ellipsized, with the matched letters in blue. */
+    /**
+     * Label in up to two centered lines, broken at any character (no space wasted on word
+     * wrapping); the second line is ellipsized. Matched letters are drawn in the accent color.
+     */
     private void drawLabel(Canvas c, App a, float x, float max) {
-        if (a.shown == null || a.shownFor != max) {
-            a.shown = TextUtils.ellipsize(a.label, labelPaint, max, TextUtils.TruncateAt.END).toString();
+        String l = a.label;
+        if (a.shownFor != max) {
+            int len = l.length();
+            int k = labelPaint.breakText(l, true, max, null);
+            if (k <= 0 || k >= len) {
+                a.end1 = len;
+                a.shown2 = null;
+            } else {
+                int e1 = k;
+                while (e1 > 0 && l.charAt(e1 - 1) == ' ') e1--;
+                int s2 = k;
+                while (s2 < len && l.charAt(s2) == ' ') s2++;
+                a.end1 = e1;
+                a.start2 = s2;
+                a.shown2 = s2 >= len ? null
+                        : TextUtils.ellipsize(l.substring(s2), labelPaint, max, TextUtils.TruncateAt.END).toString();
+            }
             a.shownFor = max;
         }
-        String s = a.shown;
         a.highlight(query, qlen, version);
-        float tx = x + (cellW - labelPaint.measureText(s)) / 2;
-        boolean ellipsized = s.length() != a.label.length();
-        int len = s.length(), i = 0;
-        while (i < len) {
-            boolean h = !(ellipsized && i == len - 1) && i < a.hl.length && a.hl[i];
+        float cx = x + cellW / 2;
+        drawLine(c, a, l, a.end1, 0, false, cx, labelY);
+        String s2 = a.shown2;
+        if (s2 != null) drawLine(c, a, s2, s2.length(), a.start2, s2.length() != l.length() - a.start2, cx, labelY + lineH);
+    }
+
+    /** s[0, end) centered at cx; char i of s is label char off + i. */
+    private void drawLine(Canvas c, App a, String s, int end, int off, boolean ellipsized, float cx, float y) {
+        float tx = cx - labelPaint.measureText(s, 0, end) / 2;
+        int i = 0;
+        while (i < end) {
+            boolean h = isHl(a, i, off, ellipsized, end);
             int j = i + 1;
-            while (j < len && (!(ellipsized && j == len - 1) && j < a.hl.length && a.hl[j]) == h) j++;
+            while (j < end && isHl(a, j, off, ellipsized, end) == h) j++;
             labelPaint.setColor(h ? accent : text);
-            c.drawText(s, i, j, tx, labelY, labelPaint);
+            c.drawText(s, i, j, tx, y, labelPaint);
             tx += labelPaint.measureText(s, i, j);
             i = j;
         }
+    }
+
+    private static boolean isHl(App a, int i, int off, boolean ellipsized, int end) {
+        if (ellipsized && i == end - 1) return false; // the "…"
+        int li = off + i;
+        return li < a.hl.length && a.hl[li];
     }
 
     // ------------------------------------------------------------------ touch
