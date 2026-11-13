@@ -1,6 +1,6 @@
 # T9 App Launcher
 
-A tiny Android app launcher that does one thing: find an app with a T9 keypad and open it.
+A tiny Android app launcher that does one thing: find an app (or a settings page) with a T9 keypad and open it.
 
 | Recent apps | `6277` → Maps | `46` → **G**mail, **Go**ogle… |
 |---|---|---|
@@ -15,7 +15,8 @@ speed, size and a small RAM and CPU footprint.
 - Drawn in software: for a panel this small it is faster than starting a GPU context and uses far less memory.
 - On my Pixel 8: opens in about 30 ms when the process is warm and 90 ms from cold; about 11 MB PSS while open.
 - The app list and the icons are cached on disk, so results show at once, even on a cold start.
-- On a cold start the app list is only rescanned when Android reports a package change.
+- The app list is only rescanned when Android reports a package change. That check runs in the background on every
+  open, so it never delays the panel.
 - Only the icons on screen are loaded; at most 48 stay in memory (8 once the panel is closed).
 - No permissions, no network.
 
@@ -48,6 +49,8 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
 - The apps I opened most recently from here come first.
 - Tap an app to open it. Long-press it to open its App info.
 - Apps from the work profile are included.
+- About 60 settings pages are searchable too (Wi-Fi, Bluetooth, Battery, Developer options, Default apps, …), with the
+  Settings icon. Pages the phone does not have are left out. They appear in the empty panel only once you used them.
 
 ## Open it with the assistant gesture
 

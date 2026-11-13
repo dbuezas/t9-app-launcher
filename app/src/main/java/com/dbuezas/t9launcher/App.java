@@ -6,14 +6,16 @@ import android.os.UserHandle;
 
 import java.text.Normalizer;
 
-/** One launchable activity plus its precomputed T9 index. */
+/** One launchable activity (or settings page) plus its precomputed T9 index. */
 final class App {
     private static final String T9 = "22233344455566677778889999";
     /** chain() failure memo: bit w of FAIL[qi] = "q[qi..] can't start at word w". Main thread only. */
     private static final long[] FAIL = new long[65];
 
-    final String key;          // "pkg/.Activity#userSerial", used for usage stats and icon cache
-    final ComponentName cn;
+    final String id;           // "pkg/.Activity", or "!" + intent action for a settings page
+    final String key;          // id + "#" + userSerial, used for usage stats and icon cache
+    final ComponentName cn;    // null for a settings page
+    final String action;       // non-null for a settings page
     final long serial;
     final UserHandle user;
     final String label;
@@ -41,13 +43,22 @@ final class App {
     final boolean[] hl;
     int hlVersion = -1;
 
-    App(ComponentName cn, long serial, UserHandle user, String label, long stamp) {
+    /** From a saved/scanned row. Returns null for a malformed id. */
+    static App of(String id, long serial, UserHandle user, String label, long stamp) {
+        if (id.startsWith("!")) return new App(id, null, id.substring(1), serial, user, label, stamp);
+        ComponentName cn = ComponentName.unflattenFromString(id);
+        return cn == null ? null : new App(id, cn, null, serial, user, label, stamp);
+    }
+
+    private App(String id, ComponentName cn, String action, long serial, UserHandle user, String label, long stamp) {
+        this.id = id;
         this.cn = cn;
+        this.action = action;
         this.serial = serial;
         this.user = user;
         this.label = label;
         this.stamp = stamp;
-        this.key = cn.flattenToShortString() + "#" + serial;
+        this.key = id + "#" + serial;
         this.sortKey = label.toLowerCase();
         this.hl = new boolean[label.length()];
 

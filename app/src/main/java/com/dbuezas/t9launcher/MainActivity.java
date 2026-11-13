@@ -15,6 +15,7 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         store = Store.get(this);
+        store.onOpen();
         view = new DialerView(this, store);
         view.banner = needsSetup();
         store.listener = view;
@@ -101,6 +102,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        store.onOpen();
         view.reset();
     }
 
@@ -129,7 +131,7 @@ public final class MainActivity extends Activity {
         try {
             Bundle opts = ActivityOptions.makeScaleUpAnimation(view, bounds.left, bounds.top - viewTop(),
                     bounds.width(), bounds.height()).toBundle();
-            store.startApp(a, bounds, opts);
+            store.startApp(this, a, bounds, opts);
             store.recordLaunch(a);
         } catch (Exception e) {
             store.scan(); // app was removed or disabled

@@ -51,6 +51,7 @@ final class DialerView extends View implements Store.Listener {
         // Most recently opened (from this app) first, then match quality.
         if (a.rank != b.rank) return a.rank > b.rank ? -1 : 1;
         if (a.tier != b.tier) return a.tier - b.tier;
+        if ((a.action == null) != (b.action == null)) return a.action == null ? -1 : 1; // apps before settings
         return a.sortKey.compareTo(b.sortKey);
     };
 
@@ -148,6 +149,8 @@ final class DialerView extends View implements Store.Listener {
         pressedResult = -1;
         if (touch == T_RESULT) touch = T_NONE;
         for (App a : apps) {
+            // Settings pages stay out of the empty list until they were used once.
+            if (qlen == 0 && a.action != null && a.usage == null) continue;
             int t = a.match(query, qlen);
             a.tier = t;
             if (t < 0) continue;

@@ -48,6 +48,71 @@ final class Store {
     }
 
     static final int ICON_DP = 56;
+
+    /** Settings pages that apps may open: {intent action, label}. Missing ones are skipped. */
+    private static final String[] SETTINGS = {
+            "android.settings.WIFI_SETTINGS", "Wi-Fi",
+            "android.settings.BLUETOOTH_SETTINGS", "Bluetooth",
+            "android.settings.AIRPLANE_MODE_SETTINGS", "Airplane mode",
+            "android.settings.WIRELESS_SETTINGS", "Network & internet",
+            "android.settings.NETWORK_OPERATOR_SETTINGS", "Mobile network",
+            "android.settings.DATA_ROAMING_SETTINGS", "Roaming",
+            "android.settings.APN_SETTINGS", "Access point names",
+            "android.settings.DATA_USAGE_SETTINGS", "Data usage",
+            "android.settings.TETHER_SETTINGS", "Hotspot & tethering",
+            "android.settings.VPN_SETTINGS", "VPN",
+            "android.settings.NFC_SETTINGS", "NFC",
+            "android.settings.NFC_PAYMENT_SETTINGS", "Contactless payments",
+            "android.settings.CAST_SETTINGS", "Cast",
+            "android.settings.panel.action.INTERNET_CONNECTIVITY", "Internet panel",
+            "android.settings.panel.action.VOLUME", "Volume panel",
+            "android.settings.DISPLAY_SETTINGS", "Display",
+            "android.settings.NIGHT_DISPLAY_SETTINGS", "Night Light",
+            "android.settings.DARK_THEME_SETTINGS", "Dark theme",
+            "android.settings.AUTO_ROTATE_SETTINGS", "Auto-rotate",
+            "android.settings.DREAM_SETTINGS", "Screen saver",
+            "android.intent.action.SET_WALLPAPER", "Wallpaper",
+            "android.settings.LOCK_SCREEN_SETTINGS", "Lock screen",
+            "android.settings.SOUND_SETTINGS", "Sound & vibration",
+            "android.settings.ZEN_MODE_SETTINGS", "Do Not Disturb",
+            "android.settings.ALL_APPS_NOTIFICATION_SETTINGS", "Notifications",
+            "android.settings.NOTIFICATION_SETTINGS", "Notification settings",
+            "android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS", "Notification access",
+            "android.intent.action.POWER_USAGE_SUMMARY", "Battery",
+            "android.settings.BATTERY_SAVER_SETTINGS", "Battery saver",
+            "android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS", "Battery optimization",
+            "android.settings.INTERNAL_STORAGE_SETTINGS", "Storage",
+            "android.settings.APPLICATION_SETTINGS", "Apps",
+            "android.settings.MANAGE_ALL_APPLICATIONS_SETTINGS", "All apps",
+            "android.settings.MANAGE_DEFAULT_APPS_SETTINGS", "Default apps",
+            "android.settings.HOME_SETTINGS", "Home app",
+            "android.settings.VOICE_INPUT_SETTINGS", "Digital assistant",
+            "android.settings.MANAGE_DOMAIN_URLS", "Opening links",
+            "android.settings.action.MANAGE_OVERLAY_PERMISSION", "Display over other apps",
+            "android.settings.action.MANAGE_WRITE_SETTINGS", "Modify system settings",
+            "android.settings.USAGE_ACCESS_SETTINGS", "Usage access",
+            "android.settings.MANAGE_UNKNOWN_APP_SOURCES", "Install unknown apps",
+            "android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION", "All files access",
+            "android.settings.SAFETY_CENTER", "Security & privacy",
+            "android.settings.SECURITY_SETTINGS", "Security",
+            "android.settings.PRIVACY_SETTINGS", "Privacy",
+            "android.settings.LOCATION_SOURCE_SETTINGS", "Location",
+            "android.settings.SYNC_SETTINGS", "Accounts",
+            "android.settings.ADD_ACCOUNT_SETTINGS", "Add account",
+            "android.settings.USER_SETTINGS", "Users",
+            "android.settings.ACCESSIBILITY_SETTINGS", "Accessibility",
+            "android.settings.CAPTIONING_SETTINGS", "Captions",
+            "android.settings.LOCALE_SETTINGS", "Languages",
+            "android.settings.INPUT_METHOD_SETTINGS", "Keyboards",
+            "android.settings.HARD_KEYBOARD_SETTINGS", "Physical keyboard",
+            "android.settings.USER_DICTIONARY_SETTINGS", "Personal dictionary",
+            "android.settings.DATE_SETTINGS", "Date & time",
+            "android.settings.PRINT_SETTINGS", "Printing",
+            "android.settings.DEVICE_NAME", "Device name",
+            "android.settings.DEVICE_INFO_SETTINGS", "About phone",
+            "android.settings.APPLICATION_DEVELOPMENT_SETTINGS", "Developer options",
+            "android.settings.WEBVIEW_SETTINGS", "WebView implementation",
+    };
     private static final int ICON_LRU = 48;     // icons kept while the panel is open
     private static final int ICON_KEEP = 8;     // icons kept while it is closed
     private static Store instance;
@@ -61,6 +126,19 @@ final class Store {
     private final HashMap<String, double[]> usage = new HashMap<>();
     private final LinkedHashMap<App, Boolean> lru = new LinkedHashMap<>(ICON_LRU, 0.75f, true);
     private boolean scanQueued;
+    /** Header of the saved list (state + package sequence number). Background thread. */
+    private volatile String savedHeader;
+
+    /**
+     * Called on every open. Never blocks: one cheap check on the background thread
+     * ("did any package change?"), and a rescan only if something did.
+     */
+    void onOpen() {
+        bg.post(() -> {
+            String h = savedHeader;
+            if (!base(h).equals(stateHeader(-1)) || packagesChanged(h)) scanNow();
+        });
+    }
 
     /** Read on the background thread too: only ever replaced, never mutated. */
     volatile App[] apps = new App[0];
@@ -97,10 +175,7 @@ final class Store {
         bg = new Handler(t.getLooper());
 
         readUsage();
-        String header = readList();
-        bg.post(() -> {
-            if (!base(header).equals(stateHeader(-1)) || packagesChanged(header)) scanNow();
-        });
+        savedHeader = readList();
         la.registerCallback(new LauncherApps.Callback() {
             @Override public void onPackageRemoved(String p, UserHandle u) { scan(); }
             @Override public void onPackageAdded(String p, UserHandle u) { scan(); }
@@ -174,7 +249,6 @@ final class Store {
             String[] f = line.split("\t", 4);
             if (f.length < 4) continue;
             try {
-                ComponentName cn = ComponentName.unflattenFromString(f[0]);
                 long serial = Long.parseLong(f[1]);
                 UserHandle u = users.get(serial);
                 if (u == null) {
@@ -182,7 +256,8 @@ final class Store {
                     if (u == null) continue;
                     users.put(serial, u);
                 }
-                if (cn != null) out.add(withUsage(new App(cn, serial, u, f[3], Long.parseLong(f[2]))));
+                App a = App.of(f[0], serial, u, f[3], Long.parseLong(f[2]));
+                if (a != null) out.add(withUsage(a));
             } catch (NumberFormatException ignored) {
             }
         }
@@ -225,8 +300,8 @@ final class Store {
             if (list == null) {
                 // Paused work profile: keep its apps, tapping one asks to unpause it.
                 for (App a : before) {
-                    if (a.serial != serial) continue;
-                    rows.add(new String[]{a.cn.flattenToShortString(), Long.toString(serial), Long.toString(a.stamp), a.label});
+                    if (a.serial != serial || a.action != null) continue;
+                    rows.add(new String[]{a.id, Long.toString(serial), Long.toString(a.stamp), a.label});
                     rowUsers.add(u);
                 }
                 continue;
@@ -240,10 +315,22 @@ final class Store {
                 rowUsers.add(u);
             }
         }
-        StringBuilder sb = new StringBuilder(rows.size() * 64).append(stateHeader(seq)).append('\n');
+        // Settings pages: keep those this phone can open.
+        android.content.pm.PackageManager pm = ctx.getPackageManager();
+        long mySerial = um.getSerialNumberForUser(me);
+        for (int i = 0; i < SETTINGS.length; i += 2) {
+            android.content.pm.ResolveInfo r = pm.resolveActivity(new Intent(SETTINGS[i]), 0);
+            if (r == null || r.activityInfo == null || !r.activityInfo.exported) continue;
+            long stamp = new File(r.activityInfo.applicationInfo.sourceDir).lastModified();
+            rows.add(new String[]{"!" + SETTINGS[i], Long.toString(mySerial), Long.toString(stamp), SETTINGS[i + 1]});
+            rowUsers.add(me);
+        }
+        String header = stateHeader(seq);
+        StringBuilder sb = new StringBuilder(rows.size() * 64).append(header).append('\n');
         for (String[] r : rows) sb.append(r[0]).append('\t').append(r[1]).append('\t').append(r[2]).append('\t').append(r[3]).append('\n');
         String text = sb.toString();
         if (!text.equals(readText(listFile))) writeText(listFile, text);
+        savedHeader = header;
         main.post(() -> applyScan(rows, rowUsers));
     }
 
@@ -258,7 +345,9 @@ final class Store {
             String[] r = rows.get(i);
             App a = old.get(r[0] + "#" + r[1] + "|" + r[2] + "|" + r[3]);
             if (a == null) {
-                a = withUsage(new App(ComponentName.unflattenFromString(r[0]), Long.parseLong(r[1]), users.get(i), r[3], Long.parseLong(r[2])));
+                a = App.of(r[0], Long.parseLong(r[1]), users.get(i), r[3], Long.parseLong(r[2]));
+                if (a == null) continue;
+                withUsage(a);
                 changed = true;
             }
             next[i] = a;
@@ -266,6 +355,9 @@ final class Store {
             keys.add(a.key);
         }
         if (changed) {
+            int n = 0;
+            for (App a : next) if (a != null) next[n++] = a;
+            if (n < next.length) next = java.util.Arrays.copyOf(next, n);
             apps = next;
             lru.keySet().retainAll(java.util.Arrays.asList(next));
             if (listener != null) listener.appsChanged();
@@ -319,12 +411,13 @@ final class Store {
         bg.post(() -> writeText(usageFile, text));
     }
 
-    void startApp(App a, Rect bounds, Bundle opts) {
-        la.startMainActivity(a.cn, a.user, bounds, opts);
+    void startApp(android.app.Activity from, App a, Rect bounds, Bundle opts) {
+        if (a.action != null) from.startActivity(new Intent(a.action), opts);
+        else la.startMainActivity(a.cn, a.user, bounds, opts);
     }
 
     void showAppInfo(App a, Rect bounds) {
-        la.startAppDetailsActivity(a.cn, a.user, bounds, null);
+        if (a.action == null) la.startAppDetailsActivity(a.cn, a.user, bounds, null);
     }
 
     // ---------------------------------------------------------------- icons
@@ -376,10 +469,18 @@ final class Store {
 
     private Bitmap render(App a, int px) {
         try {
-            LauncherActivityInfo info = la.resolveActivity(
-                    new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(a.cn), a.user);
-            if (info == null) return null;
-            Drawable d = info.getIcon(ctx.getResources().getDisplayMetrics().densityDpi);
+            Drawable d;
+            if (a.action != null) {
+                // Settings page: the icon of the app that opens it (the Settings gear).
+                android.content.pm.ResolveInfo r = ctx.getPackageManager().resolveActivity(new Intent(a.action), 0);
+                if (r == null) return null;
+                d = ctx.getPackageManager().getApplicationIcon(r.activityInfo.applicationInfo);
+            } else {
+                LauncherActivityInfo info = la.resolveActivity(
+                        new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(a.cn), a.user);
+                if (info == null) return null;
+                d = info.getIcon(ctx.getResources().getDisplayMetrics().densityDpi);
+            }
             if (!a.user.equals(Process.myUserHandle())) d = ctx.getPackageManager().getUserBadgedIcon(d, a.user);
             Bitmap b = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888);
             d.setBounds(0, 0, px, px);
