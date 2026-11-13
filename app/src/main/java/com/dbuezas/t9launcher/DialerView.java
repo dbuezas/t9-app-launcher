@@ -166,10 +166,7 @@ final class DialerView extends View implements Store.Listener {
 
     private void type(int key) {
         if (key == 0) {
-            if (qlen == 0) {
-                act.finish();
-                return;
-            }
+            if (qlen == 0) return;
             qlen = 0;
         } else {
             if (qlen == query.length) return;

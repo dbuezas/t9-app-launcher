@@ -40,7 +40,7 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
 
 ## How it works
 
-- Type with the keypad (`2`–`9`). `C` clears; on an empty query it closes the panel.
+- Type with the keypad (`2`–`9`). `C` clears. Back, or a tap outside the panel, closes it.
 - An app or settings page matches when the keys match:
   - the start of its name (`432` → **Hea**rts),
   - the start of any word (`6277` → Google **Maps**),
