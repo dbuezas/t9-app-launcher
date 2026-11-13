@@ -40,7 +40,8 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
 
 ## How it works
 
-- Type with the keypad (`2`–`9`). `C` clears. Back, or a tap outside the panel, closes it.
+- Type with the keypad (`2`–`9`). As on AppDialer, `1` shares the `2` key and `0` the `9` key, so digits in names
+  match too (`299` → Radio **100**). `C` clears. Back, or a tap outside the panel, closes it.
 - An app or settings page matches when the keys match:
   - the start of its name (`432` → **Hea**rts),
   - the start of any word (`6277` → Google **Maps**),

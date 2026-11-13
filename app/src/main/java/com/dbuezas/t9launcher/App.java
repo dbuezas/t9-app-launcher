@@ -9,6 +9,8 @@ import java.text.Normalizer;
 /** One launchable activity (or settings page) plus its precomputed T9 index. */
 final class App {
     private static final String T9 = "22233344455566677778889999";
+    /** Key of each digit: 1 shares the 2 key, 0 shares the 9 key (no 1 or 0 key on the pad). */
+    private static final String DIGIT_KEY = "9223456789";
     /** chain() failure memo: bit w of FAIL[qi] = "q[qi..] can't start at word w". Main thread only. */
     private static final long[] FAIL = new long[65];
 
@@ -132,7 +134,7 @@ final class App {
             if (lc >= 'a' && lc <= 'z') code = T9.charAt(lc - 'a');
             else if (type == 3) {
                 int dv = Character.digit(ch, 10);
-                code = dv >= 0 ? (char) ('0' + dv) : '?';
+                code = dv >= 0 ? DIGIT_KEY.charAt(dv) : '?';
             } else code = '?';
             c[len] = code;
             p[len] = i;
@@ -149,7 +151,7 @@ final class App {
     static char digitFor(char ch) {
         char lc = Character.toLowerCase(ch);
         if (lc >= 'a' && lc <= 'z') return T9.charAt(lc - 'a');
-        if (ch >= '0' && ch <= '9') return ch;
+        if (ch >= '0' && ch <= '9') return DIGIT_KEY.charAt(ch - '0');
         return 0;
     }
 
