@@ -328,7 +328,7 @@ final class DialerView extends View implements Store.Listener {
             // Centered between the second label line and the top of the key digits.
             float labelBottom = labelY + lineH + labelPaint.descent();
             float digitTop = resultsB + keyH * 0.44f - digitCapH;
-            float sy = (labelBottom + digitTop) / 2, inset = 12 * dp, track = view - 2 * inset;
+            float sy = (labelBottom + digitTop) / 2, inset = 18 * dp, track = view - 2 * inset;
             linePaint.setColor((dim & 0x00FFFFFF) | 0x33000000);
             c.drawLine(panelL + inset, sy, panelR - inset, sy, linePaint);
             float bw = Math.max(20 * dp, track * view / total);
