@@ -320,14 +320,15 @@ final class DialerView extends View implements Store.Listener {
         if (scrollX > 0) c.drawRect(panelL, panelT, panelL + fadeW, resultsB, fadeL);
         if (scrollX < maxScroll()) c.drawRect(panelR - fadeW, panelT, panelR, resultsB, fadeR);
         c.restore();
-        // Scroll hint: a thin bar showing the visible part of the row.
+        // Scroll bar: a faint track and a thumb showing the visible part of the row.
         float total = n * cellW, view = panelR - panelL;
         if (total > view) {
-            float bw = view * view / total, bx = panelL + scrollX / total * view;
-            linePaint.setColor(dim);
             float sy = resultsB - 6 * dp, inset = 24 * dp, track = view - 2 * inset;
-            bx = panelL + inset + scrollX / total * track;
-            bw = track * view / total;
+            linePaint.setColor((dim & 0x00FFFFFF) | 0x33000000);
+            c.drawLine(panelL + inset, sy, panelR - inset, sy, linePaint);
+            float bw = Math.max(20 * dp, track * view / total);
+            float bx = panelL + inset + scrollX / maxScroll() * (track - bw);
+            linePaint.setColor(dim);
             c.drawLine(bx, sy, bx + bw, sy, linePaint);
         }
     }
