@@ -19,6 +19,9 @@ final class App {
     final long serial;
     final UserHandle user;
     final String label;
+    /** Settings only: the class-name words ("Bluetooth"), shown when only they matched. */
+    final String alias;
+    final int aliasStart;      // index of alias in the indexed text, -1 if none
     final String sortKey;
     final long stamp;          // APK modification time; invalidates the cached icon
 
@@ -38,9 +41,14 @@ final class App {
     double rank;
 
     // Draw cache.
-    float shownFor;            // label width the split below was made for
-    int end1, start2;          // line 1 = label[0, end1); line 2 = shown2 = label[start2..], ellipsized
-    String shown2;
+    /** Two-line layouts of the label and of the alias, cached per width. */
+    final Lines labelLines = new Lines(), aliasLines = new Lines();
+
+    static final class Lines {
+        float width;           // width the split was made for
+        int end1, start2;      // line 1 = s[0, end1); line 2 = s[start2..], ellipsized into line2
+        String line2;
+    }
     final boolean[] hl;
     int hlVersion = -1;
 
@@ -60,7 +68,15 @@ final class App {
         s = s.substring(Math.max(s.lastIndexOf('.'), s.lastIndexOf('$')) + 1);
         if (s.endsWith("Activity")) s = s.substring(0, s.length() - 8);
         if (s.endsWith("Settings")) s = s.substring(0, s.length() - 8);
-        return s;
+        // "ZenModeVoice" -> "Zen Mode Voice", "VPNSetup" -> "VPN Setup"
+        StringBuilder b = new StringBuilder(s.length() + 4);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (i > 0 && Character.isUpperCase(c) && (Character.isLowerCase(s.charAt(i - 1))
+                    || i + 1 < s.length() && Character.isLowerCase(s.charAt(i + 1)))) b.append(' ');
+            b.append(c);
+        }
+        return b.toString().trim();
     }
 
     private App(String id, ComponentName cn, boolean setting, long serial, UserHandle user, String label, long stamp) {
@@ -73,10 +89,13 @@ final class App {
         this.stamp = stamp;
         this.key = id + "#" + serial;
         this.sortKey = label.toLowerCase();
-        this.hl = new boolean[label.length()];
+        String al = setting ? alias(cn) : "";
+        this.alias = al.isEmpty() ? null : al;
+        this.aliasStart = this.alias == null ? -1 : label.length() + 1;
 
-        // Indexed text: the label, then (for settings) the class-name words. Only the label is shown.
-        String text = setting ? label + " " + alias(cn) : label;
+        // Indexed text: the label, then (for settings) the class-name words.
+        String text = this.alias == null ? label : label + " " + this.alias;
+        this.hl = new boolean[text.length()];
         int n = text.length();
         char[] c = new char[n];
         int[] p = new int[n];

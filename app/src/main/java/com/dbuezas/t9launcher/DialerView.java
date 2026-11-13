@@ -334,30 +334,40 @@ final class DialerView extends View implements Store.Listener {
      * wrapping); the second line is ellipsized. Matched letters are drawn in the accent color.
      */
     private void drawLabel(Canvas c, App a, float x, float max) {
-        String l = a.label;
-        if (a.shownFor != max) {
+        a.highlight(query, qlen, version);
+        // A settings page matched only by its class-name words shows those words ("Bluetooth").
+        boolean useAlias = a.aliasStart > 0 && qlen > 0
+                && !anyHl(a, 0, a.label.length()) && anyHl(a, a.aliasStart, a.hl.length);
+        String l = useAlias ? a.alias : a.label;
+        int off = useAlias ? a.aliasStart : 0;
+        App.Lines ln = useAlias ? a.aliasLines : a.labelLines;
+        if (ln.width != max) {
             int len = l.length();
             int k = labelPaint.breakText(l, true, max, null);
             if (k <= 0 || k >= len) {
-                a.end1 = len;
-                a.shown2 = null;
+                ln.end1 = len;
+                ln.line2 = null;
             } else {
                 int e1 = k;
                 while (e1 > 0 && l.charAt(e1 - 1) == ' ') e1--;
                 int s2 = k;
                 while (s2 < len && l.charAt(s2) == ' ') s2++;
-                a.end1 = e1;
-                a.start2 = s2;
-                a.shown2 = s2 >= len ? null
+                ln.end1 = e1;
+                ln.start2 = s2;
+                ln.line2 = s2 >= len ? null
                         : TextUtils.ellipsize(l.substring(s2), labelPaint, max, TextUtils.TruncateAt.END).toString();
             }
-            a.shownFor = max;
+            ln.width = max;
         }
-        a.highlight(query, qlen, version);
         float cx = x + cellW / 2;
-        drawLine(c, a, l, a.end1, 0, false, cx, labelY);
-        String s2 = a.shown2;
-        if (s2 != null) drawLine(c, a, s2, s2.length(), a.start2, s2.length() != l.length() - a.start2, cx, labelY + lineH);
+        drawLine(c, a, l, ln.end1, off, false, cx, labelY);
+        String s2 = ln.line2;
+        if (s2 != null) drawLine(c, a, s2, s2.length(), off + ln.start2, s2.length() != l.length() - ln.start2, cx, labelY + lineH);
+    }
+
+    private static boolean anyHl(App a, int from, int to) {
+        for (int i = from; i < to; i++) if (a.hl[i]) return true;
+        return false;
     }
 
     /** s[0, end) centered at cx; char i of s is label char off + i. */
