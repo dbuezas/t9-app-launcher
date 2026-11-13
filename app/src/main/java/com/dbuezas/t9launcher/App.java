@@ -31,6 +31,11 @@ final class App {
     final int[] ws;
     /** For every code, the index of its char in label (for highlighting). */
     final int[] pos;
+    /**
+     * Where the alias starts: in codes and in ws. Matches never span the label and the alias
+     * (no alias: codes.length and ws.length).
+     */
+    final int splitCode, splitWord;
 
     double[] usage;            // {score, epochSeconds}, shared with Store.usage
     Bitmap icon;
@@ -100,9 +105,13 @@ final class App {
         char[] c = new char[n];
         int[] p = new int[n];
         int[] w = new int[n + 1];
-        int len = 0, words = 0;
+        int len = 0, words = 0, sc = -1, sw = -1;
         int prev = 0; // 0 boundary, 1 lower, 2 upper, 3 digit
         for (int i = 0; i < n; i++) {
+            if (i == aliasStart) {
+                sc = len;
+                sw = words;
+            }
             char ch = text.charAt(i);
             if (ch >= 128 && Character.isLetter(ch)) {
                 // Strip accents: é -> e, ñ -> n.
@@ -133,6 +142,8 @@ final class App {
         codes = java.util.Arrays.copyOf(c, len);
         pos = java.util.Arrays.copyOf(p, len);
         ws = java.util.Arrays.copyOf(w, words);
+        splitCode = sc < 0 ? len : sc;
+        splitWord = sw < 0 ? words : sw;
     }
 
     static char digitFor(char ch) {
@@ -142,8 +153,14 @@ final class App {
         return 0;
     }
 
+    /** End (exclusive, in codes) of the segment, label or alias, that code s is in. */
+    private int segEnd(int s) {
+        return s < splitCode ? splitCode : codes.length;
+    }
+
+    /** Does q occur at code s, inside one segment? */
     private boolean at(int s, char[] q, int n) {
-        if (s + n > codes.length) return false;
+        if (s + n > segEnd(s)) return false;
         for (int i = 0; i < n; i++) if (codes[s + i] != q[i]) return false;
         return true;
     }
@@ -167,23 +184,27 @@ final class App {
         return w + 1 < ws.length ? ws[w + 1] : codes.length;
     }
 
+    /** Chain over the label words, then over the alias words; never across both. */
     private boolean chain0(char[] q, int n, boolean[] mark) {
         java.util.Arrays.fill(FAIL, 0, n + 1, 0);
-        return chain(q, n, 0, 0, mark);
+        if (chain(q, n, 0, 0, splitWord, mark)) return true;
+        if (splitWord >= ws.length) return false;
+        java.util.Arrays.fill(FAIL, 0, n + 1, 0);
+        return chain(q, n, 0, splitWord, ws.length, mark);
     }
 
     /**
-     * Can q[qi..] be covered by prefixes of words w, w+1.. (words may be skipped)?
+     * Can q[qi..] be covered by prefixes of words w, w+1.. < lim (words may be skipped)?
      * Memoized, so it stays O(query * words * wordLength) even for pathological names.
      */
-    private boolean chain(char[] q, int n, int qi, int w, boolean[] mark) {
+    private boolean chain(char[] q, int n, int qi, int w, int lim, boolean[] mark) {
         if (qi == n) return true;
         if (w < 64 && (FAIL[qi] & (1L << w)) != 0) return false;
-        for (int wi = w; wi < ws.length; wi++) {
+        for (int wi = w; wi < lim; wi++) {
             int s = ws[wi], e = wordEnd(wi);
             for (int l = 0; s + l < e && qi + l < n && codes[s + l] == q[qi + l]; l++) {
-                if (chain(q, n, qi + l + 1, wi + 1, mark)) {
-                    if (mark != null) for (int k = 0; k <= l; k++) if (pos[s + k] < mark.length) mark[pos[s + k]] = true;
+                if (chain(q, n, qi + l + 1, wi + 1, lim, mark)) {
+                    if (mark != null) for (int k = 0; k <= l; k++) mark[pos[s + k]] = true;
                     return true;
                 }
             }
@@ -192,7 +213,7 @@ final class App {
         return false;
     }
 
-    /** Fill hl[] with the label chars that the query matched. */
+    /** Fill hl[] with the chars (of label + alias) that the query matched. */
     void highlight(char[] q, int n, int version) {
         if (hlVersion == version) return;
         hlVersion = version;
@@ -208,6 +229,6 @@ final class App {
         } else {
             for (int s = 1; s + n <= codes.length; s++) if (at(s, q, n)) { start = s; break; }
         }
-        if (start >= 0) for (int k = 0; k < n; k++) if (pos[start + k] < hl.length) hl[pos[start + k]] = true;
+        if (start >= 0) for (int k = 0; k < n; k++) hl[pos[start + k]] = true;
     }
 }
