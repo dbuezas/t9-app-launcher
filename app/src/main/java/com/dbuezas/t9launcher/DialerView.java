@@ -166,7 +166,13 @@ final class DialerView extends View implements Store.Listener {
 
     private void type(int key) {
         if (key == 0) {
-            if (qlen == 0) return;
+            if (qlen == 0) {
+                // Nothing to clear: just scroll back to the start.
+                scroller.forceFinished(true);
+                scrollX = 0;
+                invalidate();
+                return;
+            }
             qlen = 0;
         } else {
             if (qlen == query.length) return;
