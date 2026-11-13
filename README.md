@@ -86,6 +86,7 @@ workflow artifacts).
 
 ```sh
 ./gradlew assembleRelease   # app/build/outputs/apk/release/app-release.apk
+./pair.sh 123456            # pair once: only the code from "Pair device with pairing code"
 ./connect.sh                # find the phone over wireless adb (mDNS)
 ./install.sh                # build and install on the connected device
 scripts/screenshots.sh      # retake the README screenshots on the phone
