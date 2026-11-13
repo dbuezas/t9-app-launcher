@@ -26,7 +26,7 @@ pages) and focuses on speed, size and a small RAM and CPU footprint.
 Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with `am start -W` for the time and
 `/proc/<pid>/stat` for the CPU time; RAM is the PSS from `dumpsys meminfo`.
 
-| | AppDialer Pro 7.5.1 | T9 App Launcher 1.0.0 | T9 App Launcher 1.1.0 | `main` |
+| | AppDialer Pro 7.5.1 | T9 App Launcher 1.0.0 | T9 App Launcher 1.1.0 | T9 App Launcher 1.2.0 |
 |---|---:|---:|---:|---:|
 | APK size | 2,203 KB | 21 KB | 23 KB | 26 KB |
 | Cold open, time | 124 ms | 105 ms | 96 ms | 93 ms |
