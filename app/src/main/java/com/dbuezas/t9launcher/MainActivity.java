@@ -128,6 +128,10 @@ public final class MainActivity extends Activity {
     }
 
     void launch(App a, Rect bounds) {
+        if (a.cn.getPackageName().equals(getPackageName()) && a.user.equals(android.os.Process.myUserHandle())) {
+            finish(); // this panel itself: it is already open
+            return;
+        }
         try {
             Bundle opts = ActivityOptions.makeScaleUpAnimation(view, bounds.left, bounds.top - viewTop(),
                     bounds.width(), bounds.height()).toBundle();

@@ -50,7 +50,7 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
   - any part of one word (3 or more keys: `2583` → Ex**clud**e).
 - The matched letters are shown in blue.
 - What I opened most recently from here comes first; then the best matches, apps before settings pages.
-- Tap a result to open it. Long-press an app to open its App info.
+- Tap a result to open it. Long-press an app to open its App info. T9 App Launcher lists itself too, so its App info is one long-press away (a tap just closes the panel).
 - Apps from the work profile are included.
 - Settings pages are searchable too, read from the phone's own Settings app: every page it lets other apps open, with
   its translated title (about 160 on my Pixel 8). Pages that need an app to be chosen first are left out. The words of

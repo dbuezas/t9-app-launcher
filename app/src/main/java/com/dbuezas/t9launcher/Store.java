@@ -226,7 +226,6 @@ final class Store {
     /** Background thread. */
     private void scanNow() {
         int seq = currentSeq(); // before the scan: a change during the scan triggers the next one
-        String self = ctx.getPackageName();
         UserHandle me = Process.myUserHandle();
         App[] before = apps;
         ArrayList<String[]> rows = new ArrayList<>();
@@ -251,7 +250,6 @@ final class Store {
             }
             for (LauncherActivityInfo i : list) {
                 ComponentName cn = i.getComponentName();
-                if (u.equals(me) && cn.getPackageName().equals(self)) continue;
                 String label = String.valueOf(i.getLabel()).replace('\t', ' ').replace('\n', ' ').trim();
                 long stamp = new File(i.getApplicationInfo().sourceDir).lastModified();
                 rows.add(new String[]{cn.flattenToShortString(), Long.toString(serial), Long.toString(stamp), label});
