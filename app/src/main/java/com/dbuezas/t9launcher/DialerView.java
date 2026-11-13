@@ -26,7 +26,7 @@ import java.util.Comparator;
 @SuppressLint("ViewConstructor")
 final class DialerView extends View implements Store.Listener {
     private static final String[] DIGITS = {"C", "2", "3", "4", "5", "6", "7", "8", "9"};
-    private static final String[] LETTERS = {"clear", "abc", "def", "ghi", "jkl", "mno", "pqrs", "tuv", "wxyz"};
+    private static final String[] LETTERS = {"CLEAR", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ"};
     private static final long LONG_PRESS_MS = 450;
     private static final int RESULTS_DP = 134, KEY_DP = 68, MAX_W_DP = 320, SIDE_DP = 24;
 
@@ -112,7 +112,7 @@ final class DialerView extends View implements Store.Listener {
         digitPaint.setTextSize(24 * dp);
         digitPaint.setTextAlign(Paint.Align.CENTER);
         letterPaint.setColor(dim);
-        letterPaint.setTextSize(14 * dp);
+        letterPaint.setTextSize(13 * dp);
         letterPaint.setLetterSpacing(0.08f);
         letterPaint.setTextAlign(Paint.Align.CENTER);
         labelPaint.setTextSize(14 * dp);
