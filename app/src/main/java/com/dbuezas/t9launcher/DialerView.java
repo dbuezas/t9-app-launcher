@@ -34,9 +34,14 @@ final class DialerView extends View implements Store.Listener {
     private final int bg, text, dim, accent, press;
 
     /** The window is only as big as the panel: less GPU memory than a full-screen window. */
-    static int panelHeight(float dp) {
-        return Math.round((RESULTS_DP + 3 * KEY_DP) * dp);
+    static int panelHeight(float dp, boolean banner) {
+        return Math.round(((banner ? BANNER_DP : 0) + RESULTS_DP + 3 * KEY_DP) * dp);
     }
+
+    private static final int BANNER_DP = 40;
+    private static final String BANNER_TEXT = "Open me by swiping from a corner  \u203A";
+    /** "Set up the assistant gesture" bar on top, while the app is not the assistant. */
+    boolean banner;
 
     static int panelWidth(float dp, int screenW) {
         return (int) Math.min(screenW - 2 * SIDE_DP * dp, MAX_W_DP * dp);
@@ -199,8 +204,8 @@ final class DialerView extends View implements Store.Listener {
         float panelW = w;
         panelL = 0;
         panelR = w;
-        panelT = 0;
-        resultsB = RESULTS_DP * dp;
+        panelT = banner ? BANNER_DP * dp : 0;
+        resultsB = panelT + RESULTS_DP * dp;
         keyW = panelW / 3;
         keyH = (h - resultsB) / 3;
         float r = 28 * dp;
@@ -251,9 +256,16 @@ final class DialerView extends View implements Store.Listener {
             postInvalidateOnAnimation();
         }
         float r = 28 * dp;
-        tmpF.set(panelL, panelT, panelR, getHeight());
+        tmpF.set(panelL, 0, panelR, getHeight());
         c.drawRoundRect(tmpF, r, r, bgPaint);
 
+        if (banner) {
+            float by = panelT * 0.5f + labelPaint.getTextSize() * 0.36f + 4 * dp;
+            labelPaint.setColor(accent);
+            c.drawText(BANNER_TEXT, panelL + 24 * dp, by, labelPaint);
+            labelPaint.setColor(dim);
+            c.drawText("\u2715", panelR - 34 * dp, by, labelPaint);
+        }
         drawResults(c);
 
         // Keypad.
@@ -399,7 +411,10 @@ final class DialerView extends View implements Store.Listener {
                     velocity.computeCurrentVelocity(1000);
                     scroller.fling((int) scrollX, 0, (int) -velocity.getXVelocity(), 0,
                             0, (int) maxScroll(), 0, 0);
-                } else if (touch == T_OUTSIDE && e.getY() < panelT) act.finish();
+                } else if (touch == T_OUTSIDE && e.getY() < panelT) {
+                    if (e.getX() > panelR - 56 * dp) act.dismissSetup();
+                    else act.openSetup();
+                }
                 endTouch();
                 return true;
             }

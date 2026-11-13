@@ -34,7 +34,11 @@ The activity handles `android.intent.action.ASSIST`, so Android offers it as a d
 
 Settings → Apps → Default apps → Digital assistant app → **T9 App Launcher**.
 
-The assistant gesture (swipe up from a bottom corner, or long-press home) then opens it.
+The assistant gesture (swipe up from a bottom corner, or long-press home) then opens it. Until it is set, the app
+shows a bar on top that opens this settings page (tap ✕ to hide it).
+
+If the corner swipe does nothing, check that the gesture is on. On Pixel: Settings → System → Gestures → Navigation
+mode → ⚙ → Swipe to invoke assistant.
 
 With adb:
 

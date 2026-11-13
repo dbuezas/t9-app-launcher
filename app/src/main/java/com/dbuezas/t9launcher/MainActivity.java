@@ -16,6 +16,7 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         store = Store.get(this);
         view = new DialerView(this, store);
+        view.banner = needsSetup();
         store.listener = view;
         setContentView(view);
         placeWindow();
@@ -40,9 +41,55 @@ public final class MainActivity extends Activity {
         android.view.WindowManager.LayoutParams lp = w.getAttributes();
         lp.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL;
         lp.width = DialerView.panelWidth(dp, screenW);
-        lp.height = DialerView.panelHeight(dp);
+        lp.height = DialerView.panelHeight(dp, view.banner);
         lp.y = nav + Math.round(52 * dp);
         w.setAttributes(lp);
+    }
+
+    // ---------------------------------------------------------------- gesture setup
+
+    private java.io.File dismissedFile() {
+        return new java.io.File(getFilesDir(), "setup-dismissed");
+    }
+
+    /** True while this app is not the assistant and the hint was not dismissed. */
+    private boolean needsSetup() {
+        if (dismissedFile().exists()) return false;
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            android.app.role.RoleManager rm = getSystemService(android.app.role.RoleManager.class);
+            return rm != null && !rm.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT);
+        }
+        String a = android.provider.Settings.Secure.getString(getContentResolver(), "assistant");
+        return a == null || !a.startsWith(getPackageName() + "/");
+    }
+
+    /** Opens the "Default digital assistant app" screen. */
+    void openSetup() {
+        Intent[] tries = {
+                new Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS),
+                new Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS),
+                new Intent(android.provider.Settings.ACTION_SETTINGS),
+        };
+        for (Intent i : tries) {
+            try {
+                startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                android.widget.Toast.makeText(this,
+                        "Pick \u201CT9 App Launcher\u201D",
+                        android.widget.Toast.LENGTH_LONG).show();
+                finish();
+                return;
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    void dismissSetup() {
+        try {
+            dismissedFile().createNewFile();
+        } catch (java.io.IOException ignored) {
+        }
+        view.banner = false;
+        placeWindow();
     }
 
     @Override
