@@ -194,7 +194,7 @@ final class DialerView extends View implements Store.Listener {
         resultsB = RESULTS_DP * dp;
         keyW = panelW / 3;
         keyH = (h - resultsB) / 3;
-        cellW = panelW / 3;
+        cellW = panelW / 3.5f; // the half app shows the row scrolls
         iconSize = 56 * dp;
         labelY = panelT + 12 * dp + iconSize + 24 * dp;
         clampScroll();

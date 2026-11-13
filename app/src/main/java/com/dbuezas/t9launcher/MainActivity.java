@@ -41,7 +41,7 @@ public final class MainActivity extends Activity {
         lp.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL;
         lp.width = DialerView.panelWidth(dp, screenW);
         lp.height = DialerView.panelHeight(dp);
-        lp.y = nav + Math.round(16 * dp);
+        lp.y = nav + Math.round(52 * dp);
         w.setAttributes(lp);
     }
 
