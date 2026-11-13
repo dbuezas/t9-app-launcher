@@ -28,7 +28,7 @@ final class DialerView extends View implements Store.Listener {
     private static final String[] DIGITS = {"C", "12", "3", "4", "5", "6", "7", "8", "90"};
     private static final String[] LETTERS = {"CLEAR", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ"};
     private static final long LONG_PRESS_MS = 450;
-    private static final int RESULTS_DP = 124, KEY_DP = 68, MAX_W_DP = 320, SIDE_DP = 24;
+    private static final int RESULTS_DP = 118, KEY_DP = 68, MAX_W_DP = 320, SIDE_DP = 24;
 
     // Theme colors: follow the system light/dark mode.
     private final int bg, text, dim, accent, press;
@@ -75,7 +75,7 @@ final class DialerView extends View implements Store.Listener {
     private final int touchSlop;
 
     // Layout (px).
-    private float panelL, panelR, panelT, resultsB, keyH, keyW, cellW, iconSize, labelY, lineH;
+    private float panelL, panelR, panelT, resultsB, keyH, keyW, cellW, iconSize, labelY, lineH, digitCapH;
 
     // Search state.
     private final char[] query = new char[64];
@@ -229,6 +229,8 @@ final class DialerView extends View implements Store.Listener {
         iconSize = store.iconPx; // drawn 1:1, no scaling
         labelY = panelT + 12 * dp + iconSize + 22 * dp;
         lineH = 18 * dp;
+        digitPaint.getTextBounds("C", 0, 1, tmp);
+        digitCapH = tmp.height();
         clampScroll();
     }
 
@@ -323,7 +325,10 @@ final class DialerView extends View implements Store.Listener {
         // Scroll bar: a faint track and a thumb showing the visible part of the row.
         float total = n * cellW, view = panelR - panelL;
         if (total > view) {
-            float sy = resultsB - 4 * dp, inset = 24 * dp, track = view - 2 * inset;
+            // Centered between the second label line and the top of the key digits.
+            float labelBottom = labelY + lineH + labelPaint.descent();
+            float digitTop = resultsB + keyH * 0.44f - digitCapH;
+            float sy = (labelBottom + digitTop) / 2, inset = 12 * dp, track = view - 2 * inset;
             linePaint.setColor((dim & 0x00FFFFFF) | 0x33000000);
             c.drawLine(panelL + inset, sy, panelR - inset, sy, linePaint);
             float bw = Math.max(20 * dp, track * view / total);
