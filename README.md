@@ -19,7 +19,8 @@ pages) and focuses on speed, size and a small RAM and CPU footprint.
 - The app list is only rescanned when Android reports a package change. That check runs in the background on every
   open, so it never delays the panel. The rescan itself runs in a separate, short-lived process: reading every app's
   name loads their files (70–130 MB for about a second), and that memory is given back as soon as the scan ends.
-- Only the icons on screen are loaded, on their own thread, so a rescan never delays them. At most 48 stay in memory. When the panel closes, it keeps the icons of my 8 most recent apps, so the next open draws them at once.
+- Only the icons on screen are loaded, on their own thread, so a rescan never delays them. At most 48 stay in memory.
+  When the panel closes, it keeps the icons of my 8 most recent apps, so the next open draws them at once.
 - No permissions, no network.
 
 ## Performance
@@ -56,12 +57,14 @@ close. So almost all of the open time is Android's own work.
   letters count as their plain letters (`38772` → **Fußb**all, `67378` → **Øresu**nd, `ﬁ` as `fi`).
 - The matched letters are shown in blue.
 - What I opened most recently from here comes first; then the best matches, apps before settings pages.
-- Tap a result to open it. Long-press an app to open its App info. T9 App Launcher lists itself too, so its App info is one long-press away (a tap just closes the panel).
+- Tap a result to open it. Long-press an app to open its App info. A tap on the row while it still moves only stops
+  it. T9 App Launcher lists itself too, so its App info is one long-press away (a tap just closes the panel).
 - Apps from the work profile are included.
 - Settings pages are searchable too, read from the phone's own Settings app: every page it lets other apps open, with
   its translated title (about 160 on my Pixel 8). Pages that need an app to be chosen first are left out. The words of
   the page's internal class name count too, but only when one of them starts with what you typed: Pixel titles the
-  Bluetooth page "Devices", but `blue` finds it and shows it as **Blue**tooth. Settings pages appear in the empty panel only once you used them.
+  Bluetooth page "Devices", but `blue` finds it and shows it as **Blue**tooth. Settings pages appear in the empty
+  panel only once you used them.
 - Long names wrap to a second line between words when the rest then fits; otherwise at any character, so as much of
   the name as possible is shown.
 
@@ -85,8 +88,8 @@ adb shell cmd role add-role-holder android.app.role.ASSISTANT com.dbuezas.t9laun
 
 ## Download
 
-Get the APK from [Releases](../../releases). Every push to `main` also builds an APK in GitHub Actions (see the
-workflow artifacts).
+Get the APK from [Releases](../../releases); each release lists its changes. Every push to `main` also builds an APK
+in GitHub Actions (see the workflow artifacts).
 
 ## Build
 
@@ -101,7 +104,8 @@ scripts/release-notes.sh v1.7.0  # release notes: the commits since the previous
 ```
 
 Release signing reads `keystore.properties` (gitignored) or the `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and
-`KEY_PASSWORD` environment variables. Without them, the release build uses the debug key.
+`KEY_PASSWORD` environment variables. Without them, the release build uses the debug key. For a `v*` tag, CI only
+publishes the release if the APK is signed with my release key and the tag matches `versionName`.
 
 ## License
 
