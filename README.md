@@ -96,6 +96,7 @@ workflow artifacts).
 ./install.sh                # build and install on the connected device
 scripts/screenshots.sh      # retake the README screenshots on the phone
 scripts/bench.sh            # cold/warm open time, CPU time and RAM (median of 8 each)
+scripts/release-notes.sh v1.7.0  # release notes: the commits since the previous tag (CI uses it)
 ```
 
 Release signing reads `keystore.properties` (gitignored) or the `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and

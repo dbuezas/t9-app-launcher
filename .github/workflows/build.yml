@@ -70,6 +70,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # all tags and commits, for the release notes
+
       - uses: actions/download-artifact@v5
         with:
           name: t9-app-launcher
@@ -77,4 +81,6 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" t9-app-launcher.apk -R "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+        run: |
+          scripts/release-notes.sh "$GITHUB_REF_NAME" > notes.md
+          gh release create "$GITHUB_REF_NAME" t9-app-launcher.apk --title "$GITHUB_REF_NAME" --notes-file notes.md
