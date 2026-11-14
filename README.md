@@ -17,7 +17,8 @@ pages) and focuses on speed, size and a small RAM and CPU footprint.
   [Performance](#performance)).
 - The app list and the icons are cached on disk, so results show at once, even on a cold start.
 - The app list is only rescanned when Android reports a package change. That check runs in the background on every
-  open, so it never delays the panel.
+  open, so it never delays the panel. The rescan itself runs in a separate, short-lived process: reading every app's
+  name loads their files (70–130 MB for about a second), and that memory is given back as soon as the scan ends.
 - Only the icons on screen are loaded, on their own thread, so a rescan never delays them. At most 48 stay in memory. When the panel closes, it keeps the icons of my 8 most recent apps, so the next open draws them at once.
 - No permissions, no network.
 
@@ -38,8 +39,8 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
 
 "Cold" means the process was not running; "warm" means it was still in memory.
 
-Since 1.3.0 the panel also reads the settings pages. When it rescans (after an app is installed or updated), RAM
-goes up for that one open, while it reads the Settings app, and goes down again when the panel closes.
+For comparison, an empty app that only shows the same card: cold 93 ms, warm 44 ms, 9 MB while open, 13 MB after
+close. So almost all of the open time is Android's own work.
 
 ## How it works
 

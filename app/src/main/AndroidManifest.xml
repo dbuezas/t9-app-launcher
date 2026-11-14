@@ -42,5 +42,10 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <!-- The app-list scan runs in its own short-lived process: see ScanService. -->
+        <service
+            android:name=".ScanService"
+            android:exported="false"
+            android:process=":scan" />
     </application>
 </manifest>

@@ -81,7 +81,7 @@ final class Store {
     void onOpen() {
         bg.post(() -> {
             String h = savedHeader;
-            if (!base(h).equals(stateHeader(-1)) || packagesChanged(h)) scanNow();
+            if (!base(h).equals(stateHeader(-1)) || packagesChanged(h)) scanRemote();
         });
     }
 
@@ -120,6 +120,11 @@ final class Store {
     }
 
     private Store(Context c) {
+        this(c, true);
+    }
+
+    /** remote: this is the ":scan" process, which only runs one scan and writes apps.tsv. */
+    private Store(Context c, boolean panel) {
         ctx = c;
         la = c.getSystemService(LauncherApps.class);
         um = c.getSystemService(UserManager.class);
@@ -136,7 +141,7 @@ final class Store {
 
         readUsage();
         savedHeader = readList();
-        la.registerCallback(new LauncherApps.Callback() {
+        if (panel) la.registerCallback(new LauncherApps.Callback() {
             @Override public void onPackageRemoved(String p, UserHandle u) { scan(); }
             @Override public void onPackageAdded(String p, UserHandle u) { scan(); }
             @Override public void onPackageChanged(String p, UserHandle u) { scan(); }
@@ -218,7 +223,21 @@ final class Store {
     private String readList() {
         String text = readText(listFile);
         if (text == null) return "";
-        ArrayList<App> out = new ArrayList<>();
+        ArrayList<String[]> rows = new ArrayList<>();
+        ArrayList<UserHandle> users = new ArrayList<>();
+        String header = parseList(text, rows, users);
+        ArrayList<App> out = new ArrayList<>(rows.size());
+        for (int i = 0; i < rows.size(); i++) {
+            String[] f = rows.get(i);
+            App a = App.of(f[0], Long.parseLong(f[1]), users.get(i), f[3], Long.parseLong(f[2]));
+            if (a != null) out.add(withUsage(a));
+        }
+        apps = out.toArray(new App[0]);
+        return header;
+    }
+
+    /** Rows of apps.tsv (id, serial, stamp, label) with their users. Returns the header, "" if none. */
+    private String parseList(String text, ArrayList<String[]> rows, ArrayList<UserHandle> rowUsers) {
         HashMap<Long, UserHandle> users = new HashMap<>();
         String header = "";
         int start = 0, len = text.length();
@@ -241,12 +260,12 @@ final class Store {
                     if (u == null) continue;
                     users.put(serial, u);
                 }
-                App a = App.of(f[0], serial, u, f[3], Long.parseLong(f[2]));
-                if (a != null) out.add(withUsage(a));
+                Long.parseLong(f[2]);
+                rows.add(f);
+                rowUsers.add(u);
             } catch (NumberFormatException ignored) {
             }
         }
-        apps = out.toArray(new App[0]);
         return header;
     }
 
@@ -261,12 +280,42 @@ final class Store {
         scanQueued = true;
         bg.postDelayed(() -> {
             main.post(() -> scanQueued = false);
-            scanNow();
+            scanRemote();
         }, 100);
     }
 
-    /** Background thread. */
-    private void scanNow() {
+    /** Starts a scan in the ":scan" process; its result is read back from apps.tsv. Any thread. */
+    private void scanRemote() {
+        Intent i = new Intent(ctx, ScanService.class).putExtra(ScanService.EXTRA_DONE, new android.os.ResultReceiver(bg) {
+            @Override
+            protected void onReceiveResult(int complete, Bundle b) {
+                loadScanned(complete == 1);
+            }
+        });
+        try {
+            ctx.startService(i);
+        } catch (Exception e) {
+            // Not allowed while the app is in the background: the check on the next open rescans.
+        }
+    }
+
+    /** Background thread: apply the list the scan process wrote. */
+    private void loadScanned(boolean complete) {
+        String text = readText(listFile);
+        if (text == null) return;
+        ArrayList<String[]> rows = new ArrayList<>();
+        ArrayList<UserHandle> users = new ArrayList<>();
+        savedHeader = parseList(text, rows, users);
+        main.post(() -> applyScan(rows, users, complete));
+    }
+
+    /** Runs in the ":scan" process (ScanService). Returns false if the scan was partial. */
+    static boolean scanInThisProcess(Context c) {
+        return new Store(c.getApplicationContext(), false).scanNow();
+    }
+
+    /** Scan process only: rescans and writes apps.tsv. */
+    private boolean scanNow() {
         int seq = currentSeq(); // before the scan: a change during the scan triggers the next one
         UserHandle me = Process.myUserHandle();
         App[] before = apps;
@@ -306,9 +355,7 @@ final class Store {
         for (String[] r : rows) sb.append(r[0]).append('\t').append(r[1]).append('\t').append(r[2]).append('\t').append(r[3]).append('\n');
         String text = sb.toString();
         if (!text.equals(readText(listFile))) writeText(listFile, text);
-        savedHeader = header;
-        boolean done = complete;
-        main.post(() -> applyScan(rows, rowUsers, done));
+        return complete;
     }
 
     /** Copies the previous rows of one profile (apps or settings pages). Returns false if there were none. */
