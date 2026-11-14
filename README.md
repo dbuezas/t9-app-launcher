@@ -11,7 +11,7 @@ assistant. It is not maintained any more, so I wrote this replacement. It keeps 
 pages) and focuses on speed, size and a small RAM and CPU footprint.
 
 **It opens only 10 ms slower than an empty app (103 vs 93 ms), and uses only 9 MB more RAM (18 vs 9 MB).** The empty
-app is a test app that only shows the same card, so almost all of the open time is Android's own work.
+app is a test app that shows an empty card and does nothing, so almost all of the open time is Android's own work.
 
 - About 29 KB APK. Plain Java, no libraries, no AndroidX.
 - The whole UI is one custom `View`: no layouts, no adapters.
@@ -50,7 +50,7 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
 | RAM while open | 9 MB | 18 MB |
 | RAM after close | 13 MB | 22 MB |
 
-The empty app is a test app that only shows the same card: the least any app with this window can cost. Both were
+The empty app is a test app that shows an empty card and does nothing: the least any app with this window can cost. Both were
 measured right after each other, the same way as above.
 
 ## How it works
