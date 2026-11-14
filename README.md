@@ -10,7 +10,7 @@ I used [AppDialer](https://play.google.com/store/apps/details?id=name.pilgr.appd
 assistant. It is not maintained any more, so I wrote this replacement. It keeps only the T9 search (apps and settings
 pages) and focuses on speed, size and a small RAM and CPU footprint.
 
-- About 28 KB APK. Plain Java, no libraries, no AndroidX.
+- About 29 KB APK. Plain Java, no libraries, no AndroidX.
 - The whole UI is one custom `View`: no layouts, no adapters.
 - Drawn in software: for a panel this small it is faster than starting a GPU context and uses far less memory.
 - On my Pixel 8: opens in about 40 ms when the process is warm and 100 ms from cold, with about 19 MB of RAM (see
