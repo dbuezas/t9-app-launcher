@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -43,13 +43,38 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk t9-app-launcher.apk
           ls -l t9-app-launcher.apk
 
+      - name: Check release signature and version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # Never publish an APK signed with another key (e.g. the debug key when a secret is missing):
+          # phones with the real build could not update to it.
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs t9-app-launcher.apk | tee certs.txt
+          grep -q "SHA-256 digest: 59a586ddbfd579d6730aacc6dfd6e2417172ead1c62be7a2cee30ddd8472f166" certs.txt \
+            || { echo "::error::APK is not signed with the release key"; exit 1; }
+          # The tag must match versionName, so the release shows the right version.
+          NAME=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          [ "v$NAME" = "$GITHUB_REF_NAME" ] \
+            || { echo "::error::tag $GITHUB_REF_NAME does not match versionName $NAME"; exit 1; }
+
       - uses: actions/upload-artifact@v7
         with:
           name: t9-app-launcher
           path: t9-app-launcher.apk
 
+  publish:
+    # Only this job can write to the repo, and only for tags.
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: t9-app-launcher
+
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" t9-app-launcher.apk --title "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" t9-app-launcher.apk -R "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes

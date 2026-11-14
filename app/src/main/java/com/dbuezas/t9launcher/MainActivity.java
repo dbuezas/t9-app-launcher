@@ -16,12 +16,24 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         store = Store.get(this);
         store.onOpen();
-        view = new DialerView(this, store);
-        view.banner = needsSetup();
-        store.listener = view;
-        setContentView(view);
+        look = lookOf(getResources().getConfiguration());
+        buildView(needsSetup());
         placeWindow();
         setFinishOnTouchOutside(true);
+    }
+
+    /** Dark mode and display size: the view's colors and sizes are fixed when it is made. */
+    private int look;
+
+    private static int lookOf(android.content.res.Configuration c) {
+        return c.densityDpi * 4 + (c.uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK);
+    }
+
+    private void buildView(boolean banner) {
+        view = new DialerView(this, store);
+        view.banner = banner;
+        store.listener = view;
+        setContentView(view);
     }
 
     /** A floating card, centered, just above the navigation bar. */
@@ -96,6 +108,13 @@ public final class MainActivity extends Activity {
     @Override
     public void onConfigurationChanged(android.content.res.Configuration c) {
         super.onConfigurationChanged(c);
+        int l = lookOf(c);
+        if (l != look) {
+            // Dark mode or display size changed while open: rebuild with the new colors and sizes.
+            look = l;
+            store.checkDensity();
+            buildView(view.banner);
+        }
         placeWindow();
     }
 

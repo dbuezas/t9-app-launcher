@@ -27,7 +27,6 @@ import java.util.Comparator;
 final class DialerView extends View implements Store.Listener {
     private static final String[] DIGITS = {"C", "12", "3", "4", "5", "6", "7", "8", "90"};
     private static final String[] LETTERS = {"CLEAR", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ"};
-    private static final long LONG_PRESS_MS = 450;
     private static final int RESULTS_DP = 118, KEY_DP = 68, MAX_W_DP = 320, SIDE_DP = 24;
 
     // Theme colors: follow the system light/dark mode.
@@ -42,6 +41,8 @@ final class DialerView extends View implements Store.Listener {
     private static final String BANNER_TEXT = "Open me by swiping from a corner  \u203A";
     /** "Set up the assistant gesture" bar on top, while the app is not the assistant. */
     boolean banner;
+    private String bannerText = BANNER_TEXT;
+    private float bannerW = -1;
 
     static int panelWidth(float dp, int screenW) {
         return (int) Math.min(screenW - 2 * SIDE_DP * dp, MAX_W_DP * dp);
@@ -80,13 +81,16 @@ final class DialerView extends View implements Store.Listener {
     // Search state.
     private final char[] query = new char[64];
     private int qlen;
-    private int version;
+    /** Highlight cache key. Static: App objects outlive this view, so it must never repeat. */
+    private static int version;
     private final ArrayList<App> results = new ArrayList<>();
 
     // Touch state.
     private static final int T_NONE = 0, T_KEY = 1, T_RESULT = 2, T_DRAG = 3, T_OUTSIDE = 4;
     private int touch = T_NONE, pressedKey = -1, pressedResult = -1;
     private float downX, downY, lastX, scrollX;
+    /** The finger that pressed the results row (drag, tap, long-press). */
+    private int pointerId = -1;
     private VelocityTracker velocity;
     private final Runnable longPress = this::onLongPress;
 
@@ -128,7 +132,7 @@ final class DialerView extends View implements Store.Listener {
 
     @Override
     public void appsChanged() {
-        search();
+        search(false); // a background rescan: keep the scroll position
     }
 
     @Override
@@ -142,6 +146,10 @@ final class DialerView extends View implements Store.Listener {
     }
 
     private void search() {
+        search(true);
+    }
+
+    private void search(boolean resetScroll) {
         App[] apps = store.apps;
         results.clear();
         // The list may change under a finger: never launch a stale index.
@@ -159,8 +167,12 @@ final class DialerView extends View implements Store.Listener {
         }
         Collections.sort(results, ORDER);
         version++;
-        scroller.forceFinished(true);
-        scrollX = 0;
+        if (resetScroll) {
+            scroller.forceFinished(true);
+            scrollX = 0;
+        } else {
+            clampScroll();
+        }
         invalidate();
     }
 
@@ -271,7 +283,12 @@ final class DialerView extends View implements Store.Listener {
         if (banner) {
             float by = panelT * 0.5f + labelPaint.getTextSize() * 0.36f + 4 * dp;
             labelPaint.setColor(accent);
-            c.drawText(BANNER_TEXT, panelL + 24 * dp, by, labelPaint);
+            float bmax = panelR - 56 * dp - (panelL + 24 * dp);
+            if (bannerW != bmax) {
+                bannerW = bmax;
+                bannerText = TextUtils.ellipsize(BANNER_TEXT, labelPaint, bmax, TextUtils.TruncateAt.END).toString();
+            }
+            c.drawText(bannerText, panelL + 24 * dp, by, labelPaint);
             labelPaint.setColor(dim);
             c.drawText("\u2715", panelR - 34 * dp, by, labelPaint);
         }
@@ -373,15 +390,16 @@ final class DialerView extends View implements Store.Listener {
                 while (s2 < len && l.charAt(s2) == ' ') s2++;
                 ln.end1 = e1;
                 ln.start2 = s2;
-                ln.line2 = s2 >= len ? null
-                        : TextUtils.ellipsize(l.substring(s2), labelPaint, max, TextUtils.TruncateAt.END).toString();
+                String rest = s2 >= len ? null : l.substring(s2);
+                ln.line2 = rest == null ? null : TextUtils.ellipsize(rest, labelPaint, max, TextUtils.TruncateAt.END).toString();
+                ln.ellipsized = rest != null && !rest.equals(ln.line2);
             }
             ln.width = max;
         }
         float cx = x + cellW / 2;
         drawLine(c, a, l, ln.end1, off, false, cx, labelY);
         String s2 = ln.line2;
-        if (s2 != null) drawLine(c, a, s2, s2.length(), off + ln.start2, s2.length() != l.length() - ln.start2, cx, labelY + lineH);
+        if (s2 != null) drawLine(c, a, s2, s2.length(), off + ln.start2, ln.ellipsized, cx, labelY + lineH);
     }
 
     private static boolean anyHl(App a, int from, int to) {
@@ -437,44 +455,63 @@ final class DialerView extends View implements Store.Listener {
                 if (action != MotionEvent.ACTION_DOWN) return true;
                 downX = lastX = x;
                 downY = y;
+                pointerId = e.getPointerId(i);
                 if (y < panelT) {
                     touch = T_OUTSIDE;
                 } else if (y < resultsB) {
-                    scroller.forceFinished(true);
+                    if (!scroller.isFinished()) {
+                        // A tap on a moving row only stops it: never open what happens to be under the finger.
+                        scroller.forceFinished(true);
+                        touch = T_DRAG;
+                        return true;
+                    }
                     pressedResult = resultAt(x, y);
                     touch = T_RESULT;
-                    if (pressedResult >= 0) postDelayed(longPress, LONG_PRESS_MS);
+                    if (pressedResult >= 0) postDelayed(longPress, ViewConfiguration.getLongPressTimeout());
                     invalidate();
                 }
                 return true;
             }
             case MotionEvent.ACTION_MOVE: {
-                if (touch == T_RESULT && Math.abs(e.getX() - downX) > touchSlop) {
+                int i = e.findPointerIndex(pointerId);
+                if (i < 0) return true;
+                float x = e.getX(i), y = e.getY(i);
+                if (touch == T_RESULT && Math.abs(x - downX) > touchSlop) {
                     touch = T_DRAG;
                     pressedResult = -1;
                     removeCallbacks(longPress);
-                    lastX = e.getX();
+                    lastX = x;
+                } else if (touch == T_RESULT && Math.abs(y - downY) > touchSlop) {
+                    cancelPress(); // slid up or down: neither a tap nor a drag of the row
+                } else if (touch == T_OUTSIDE && Math.hypot(x - downX, y - downY) > touchSlop) {
+                    touch = T_NONE;
                 }
                 if (touch == T_DRAG) {
-                    scrollX += lastX - e.getX();
-                    lastX = e.getX();
+                    scrollX += lastX - x;
+                    lastX = x;
                     clampScroll();
                     invalidate();
                 }
                 return true;
             }
             case MotionEvent.ACTION_POINTER_UP:
+                if (e.getPointerId(e.getActionIndex()) == pointerId) {
+                    // The finger on the row lifted while another one stays down (on a key).
+                    if (touch == T_DRAG) fling();
+                    else removeCallbacks(longPress);
+                    touch = T_NONE;
+                    pressedResult = -1;
+                    pointerId = -1;
+                }
                 pressedKey = -1;
                 invalidate();
                 return true;
             case MotionEvent.ACTION_UP: {
                 removeCallbacks(longPress);
-                if (touch == T_RESULT && pressedResult >= 0) launch(pressedResult);
-                else if (touch == T_DRAG) {
-                    velocity.computeCurrentVelocity(1000);
-                    scroller.fling((int) scrollX, 0, (int) -velocity.getXVelocity(), 0,
-                            0, (int) maxScroll(), 0, 0);
-                } else if (touch == T_OUTSIDE && e.getY() < panelT) {
+                boolean mine = e.getPointerId(e.getActionIndex()) == pointerId;
+                if (mine && touch == T_RESULT && pressedResult >= 0) launch(pressedResult);
+                else if (mine && touch == T_DRAG) fling();
+                else if (mine && touch == T_OUTSIDE && e.getY() < panelT) {
                     if (e.getX() > panelR - 56 * dp) act.dismissSetup();
                     else act.openSetup();
                 }
@@ -489,7 +526,21 @@ final class DialerView extends View implements Store.Listener {
         return true;
     }
 
+    private void fling() {
+        velocity.computeCurrentVelocity(1000);
+        scroller.fling((int) scrollX, 0, (int) -velocity.getXVelocity(pointerId), 0, 0, (int) maxScroll(), 0, 0);
+        invalidate();
+    }
+
+    private void cancelPress() {
+        removeCallbacks(longPress);
+        touch = T_NONE;
+        pressedResult = -1;
+        invalidate();
+    }
+
     private void endTouch() {
+        pointerId = -1;
         touch = T_NONE;
         pressedKey = -1;
         pressedResult = -1;

@@ -10,7 +10,7 @@ I used [AppDialer](https://play.google.com/store/apps/details?id=name.pilgr.appd
 assistant. It is not maintained any more, so I wrote this replacement. It keeps only the T9 search (apps and settings
 pages) and focuses on speed, size and a small RAM and CPU footprint.
 
-- About 26 KB APK. Plain Java, no libraries, no AndroidX.
+- About 28 KB APK. Plain Java, no libraries, no AndroidX.
 - The whole UI is one custom `View`: no layouts, no adapters.
 - Drawn in software: for a panel this small it is faster than starting a GPU context and uses far less memory.
 - On my Pixel 8: opens in about 40 ms when the process is warm and 100 ms from cold, with about 19 MB of RAM (see
@@ -51,6 +51,8 @@ goes up for that one open, while it reads the Settings app, and goes down again 
   - the starts of its words in order, from the first word, none skipped (`46` → **G**oogle **M**aps,
     `476` → **G**oogle **P**lay **M**usic), or
   - any part of one word (3 or more keys: `2583` → Ex**clud**e).
+- Words also start at capitals inside a name (`8823` → You**Tube**, `8439` → PDF**View**er). Accents and special
+  letters count as their plain letters (`38772` → **Fußb**all, `67378` → **Øresu**nd, `ﬁ` as `fi`).
 - The matched letters are shown in blue.
 - What I opened most recently from here comes first; then the best matches, apps before settings pages.
 - Tap a result to open it. Long-press an app to open its App info. T9 App Launcher lists itself too, so its App info is one long-press away (a tap just closes the panel).

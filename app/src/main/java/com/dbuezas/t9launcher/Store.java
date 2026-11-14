@@ -88,11 +88,15 @@ final class Store {
     /** Read on the background thread too: only ever replaced, never mutated. */
     volatile App[] apps = new App[0];
     Listener listener;
-    final int iconPx;
+    /** Icon size in px. Main thread; changes with the display size. */
+    int iconPx;
 
     static Store get(Context c) {
         if (instance == null) instance = new Store(c.getApplicationContext());
-        else instance.checkLocale();
+        else {
+            instance.checkLocale();
+            instance.checkDensity();
+        }
         return instance;
     }
 
@@ -105,6 +109,14 @@ final class Store {
             locale = l;
             scan();
         }
+    }
+
+    /** Display size changed while the process lived: icons are drawn 1:1, so drop the old ones. */
+    void checkDensity() {
+        int px = Math.round(ICON_DP * ctx.getResources().getDisplayMetrics().density);
+        if (px == iconPx) return;
+        iconPx = px;
+        trimIcons(0);
     }
 
     private Store(Context c) {
@@ -137,17 +149,42 @@ final class Store {
 
     /**
      * Everything that invalidates the saved list, except the package sequence number:
-     * boot count (sequence numbers restart at boot), locale (labels), profiles.
-     * With seq >= 0 the sequence number is appended.
+     * boot count (sequence numbers restart at boot), locale (labels), system build, profiles.
+     * The sequence number only covers this profile, so the other profiles (work) add a cheap
+     * summary of their apps. With seq >= 0 the sequence number is appended.
+     * Background thread.
      */
     private String stateHeader(int seq) {
         StringBuilder sb = new StringBuilder("#")
                 .append(Settings.Global.getInt(ctx.getContentResolver(), Settings.Global.BOOT_COUNT, -1))
                 .append('|').append(Locale.getDefault())
+                .append('|').append(Integer.toHexString(android.os.Build.FINGERPRINT.hashCode()))
                 .append('|');
-        for (UserHandle u : um.getUserProfiles()) sb.append(um.getSerialNumberForUser(u)).append(',');
+        UserHandle me = Process.myUserHandle();
+        for (UserHandle u : um.getUserProfiles()) {
+            sb.append(um.getSerialNumberForUser(u));
+            if (!u.equals(me)) {
+                if (um.isQuietModeEnabled(u)) sb.append('q');
+                else sb.append(':').append(profileSummary(u));
+            }
+            sb.append(',');
+        }
         if (seq >= 0) sb.append('|').append(seq);
         return sb.toString();
+    }
+
+    /** Number of apps and a hash of their names and file times: changes on install, update, removal. */
+    private String profileSummary(UserHandle u) {
+        try {
+            List<LauncherActivityInfo> list = la.getActivityList(null, u);
+            long h = 0;
+            for (LauncherActivityInfo i : list) {
+                h += i.getComponentName().hashCode() * 31L + new File(i.getApplicationInfo().sourceDir).lastModified();
+            }
+            return list.size() + "-" + Long.toHexString(h);
+        } catch (Exception e) {
+            return "?";
+        }
     }
 
     private static int seqOf(String header) {
@@ -235,6 +272,7 @@ final class Store {
         App[] before = apps;
         ArrayList<String[]> rows = new ArrayList<>();
         ArrayList<UserHandle> rowUsers = new ArrayList<>();
+        boolean complete = true; // false: some apps may be missing, so keep their launch history
         for (UserHandle u : um.getUserProfiles()) {
             long serial = um.getSerialNumberForUser(u);
             List<LauncherActivityInfo> list = null;
@@ -246,11 +284,7 @@ final class Store {
             }
             if (list == null) {
                 // Paused work profile: keep its apps, tapping one asks to unpause it.
-                for (App a : before) {
-                    if (a.serial != serial || a.setting) continue;
-                    rows.add(new String[]{a.id, Long.toString(serial), Long.toString(a.stamp), a.label});
-                    rowUsers.add(u);
-                }
+                if (!keep(before, serial, false, u, rows, rowUsers)) complete = false;
                 continue;
             }
             for (LauncherActivityInfo i : list) {
@@ -261,28 +295,48 @@ final class Store {
                 rowUsers.add(u);
             }
         }
-        scanSettings(rows, rowUsers, me);
-        String header = stateHeader(seq);
+        boolean settingsOk = scanSettings(rows, rowUsers, me);
+        if (!settingsOk) {
+            // Settings could not be read (it may be updating): keep the old pages, try again next open.
+            keep(before, um.getSerialNumberForUser(me), true, me, rows, rowUsers);
+            complete = false;
+        }
+        String header = settingsOk ? stateHeader(seq) : stateHeader(-1) + "|-1";
         StringBuilder sb = new StringBuilder(rows.size() * 64).append(header).append('\n');
         for (String[] r : rows) sb.append(r[0]).append('\t').append(r[1]).append('\t').append(r[2]).append('\t').append(r[3]).append('\n');
         String text = sb.toString();
         if (!text.equals(readText(listFile))) writeText(listFile, text);
         savedHeader = header;
-        main.post(() -> applyScan(rows, rowUsers));
+        boolean done = complete;
+        main.post(() -> applyScan(rows, rowUsers, done));
+    }
+
+    /** Copies the previous rows of one profile (apps or settings pages). Returns false if there were none. */
+    private static boolean keep(App[] before, long serial, boolean settings, UserHandle u,
+                                ArrayList<String[]> rows, ArrayList<UserHandle> rowUsers) {
+        boolean any = false;
+        for (App a : before) {
+            if (a.serial != serial || a.setting != settings) continue;
+            rows.add(new String[]{a.id, Long.toString(serial), Long.toString(a.stamp), a.label});
+            rowUsers.add(u);
+            any = true;
+        }
+        return any;
     }
 
     /**
      * Settings pages, read from the phone's Settings app: every exported page with its own
      * (translated) title. Pages that need arguments are skipped; duplicate titles are dropped.
      */
-    private void scanSettings(ArrayList<String[]> rows, ArrayList<UserHandle> rowUsers, UserHandle me) {
+    private boolean scanSettings(ArrayList<String[]> rows, ArrayList<UserHandle> rowUsers, UserHandle me) {
         android.content.pm.PackageManager pm = ctx.getPackageManager();
+        int start = rows.size();
         try {
             android.content.pm.ResolveInfo sr = pm.resolveActivity(new Intent(android.provider.Settings.ACTION_SETTINGS), 0);
-            if (sr == null) return;
+            if (sr == null) return false;
             android.content.pm.ApplicationInfo app = sr.activityInfo.applicationInfo;
             android.content.pm.PackageInfo pi = pm.getPackageInfo(app.packageName, android.content.pm.PackageManager.GET_ACTIVITIES);
-            if (pi.activities == null) return;
+            if (pi.activities == null) return false;
             String appLabel = String.valueOf(pm.getApplicationLabel(app));
             String serial = Long.toString(um.getSerialNumberForUser(me));
             String stamp = Long.toString(new File(app.sourceDir).lastModified());
@@ -296,11 +350,18 @@ final class Store {
                 rows.add(new String[]{"!" + new ComponentName(app.packageName, ai.name).flattenToShortString(), serial, stamp, label});
                 rowUsers.add(me);
             }
-        } catch (Exception ignored) {
+            return true;
+        } catch (Exception e) {
+            // Drop what was added before the failure.
+            while (rows.size() > start) {
+                rows.remove(rows.size() - 1);
+                rowUsers.remove(rowUsers.size() - 1);
+            }
+            return false;
         }
     }
 
-    private void applyScan(ArrayList<String[]> rows, ArrayList<UserHandle> users) {
+    private void applyScan(ArrayList<String[]> rows, ArrayList<UserHandle> users, boolean complete) {
         HashMap<String, App> old = new HashMap<>();
         for (App a : apps) old.put(a.key + "|" + a.stamp + "|" + a.label, a);
         App[] next = new App[rows.size()];
@@ -328,7 +389,8 @@ final class Store {
             lru.keySet().retainAll(java.util.Arrays.asList(next));
             if (listener != null) listener.appsChanged();
         }
-        // Forget usage of removed apps; delete their icons.
+        // Forget usage of removed apps; delete their icons. Not after a partial scan: they may come back.
+        if (!complete) return;
         if (usage.keySet().retainAll(keys)) saveUsage();
         iconBg.post(() -> { // same thread as the icon writes, so it never deletes one mid-write
             File[] files = iconDir.listFiles();
@@ -389,7 +451,9 @@ final class Store {
     // ---------------------------------------------------------------- icons
 
     private String iconName(App a) {
-        return Integer.toHexString(a.key.hashCode()) + "_" + Long.toHexString(a.stamp) + "_" + iconPx + ".png";
+        // The system build too: system apps keep the same file time across updates of the phone.
+        return Integer.toHexString(a.key.hashCode()) + "_" + Long.toHexString(a.stamp) + "_" + iconPx
+                + "_" + Integer.toHexString(android.os.Build.FINGERPRINT.hashCode()) + ".png";
     }
 
     /** Non-blocking. Calls listener.iconLoaded() when ready. Main thread only. */
@@ -411,7 +475,7 @@ final class Store {
             Bitmap result = b;
             main.post(() -> {
                 a.iconLoading = false;
-                if (result == null) return;
+                if (result == null || px != iconPx) return; // display size changed meanwhile
                 a.icon = result;
                 lru.put(a, Boolean.TRUE);
                 trimIcons(ICON_LRU);
@@ -511,6 +575,7 @@ final class Store {
         File tmp = new File(f.getPath() + ".tmp");
         try (FileOutputStream o = new FileOutputStream(tmp)) {
             o.write(text.getBytes(StandardCharsets.UTF_8));
+            o.getFD().sync(); // on disk before the rename: a power cut never leaves an empty file
         } catch (Exception e) {
             return;
         }

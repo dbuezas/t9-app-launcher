@@ -55,6 +55,7 @@ final class App {
         float width;           // width the split was made for
         int end1, start2;      // line 1 = s[0, end1); line 2 = s[start2..], ellipsized into line2
         String line2;
+        boolean ellipsized;    // line2 ends with "…" (never highlighted)
     }
     final boolean[] hl;
     int hlVersion = -1;
@@ -104,48 +105,91 @@ final class App {
         String text = this.alias == null ? label : label + " " + this.alias;
         this.hl = new boolean[text.length()];
         int n = text.length();
-        char[] c = new char[n];
-        int[] p = new int[n];
-        int[] w = new int[n + 1];
+        char[] c = new char[n + 8];
+        int[] p = new int[n + 8];
+        int[] w = new int[n + 9];
         int len = 0, words = 0, sc = -1, sw = -1;
         int prev = 0; // 0 boundary, 1 lower, 2 upper, 3 digit
         for (int i = 0; i < n; i++) {
             if (i == aliasStart) {
                 sc = len;
                 sw = words;
-            }
-            char ch = text.charAt(i);
-            if (ch >= 128 && Character.isLetter(ch)) {
-                // Strip accents: é -> e, ñ -> n.
-                String d = Normalizer.normalize(String.valueOf(ch), Normalizer.Form.NFD);
-                if (d.length() > 0) ch = d.charAt(0);
-            }
-            int type;
-            if (Character.isDigit(ch)) type = 3;
-            else if (Character.isLetter(ch)) type = Character.isUpperCase(ch) ? 2 : 1;
-            else {
                 prev = 0;
-                continue;
             }
-            // New word at: start, after separator, letter<->digit, camelCase hump.
-            if (prev == 0 || (type == 3) != (prev == 3) || (type == 2 && prev == 1)) w[words++] = len;
-            char lc = Character.toLowerCase(ch);
-            char code;
-            if (lc >= 'a' && lc <= 'z') code = T9.charAt(lc - 'a');
-            else if (type == 3) {
-                int dv = Character.digit(ch, 10);
-                code = dv >= 0 ? DIGIT_KEY.charAt(dv) : '?';
-            } else code = '?';
-            c[len] = code;
-            p[len] = i;
-            len++;
-            prev = type;
+            char ch0 = text.charAt(i);
+            // Plain ASCII as is; other letters folded to ASCII ("é" -> "e", "ß" -> "ss", "ﬁ" -> "fi").
+            String d = ch0 < 128 ? null : fold(ch0);
+            int m = d == null ? 1 : d.length();
+            for (int j = 0; j < m; j++) {
+                char ch = d == null ? ch0 : d.charAt(j);
+                int type;
+                if (Character.isDigit(ch)) type = 3;
+                else if (Character.isLetter(ch)) type = Character.isUpperCase(ch) ? 2 : 1;
+                else if (isMark(ch) || ch == '\'' || ch == '\u2019') continue; // accents, "Today's": same word
+                else {
+                    prev = 0;
+                    continue;
+                }
+                // New word at: start, after separator, letter<->digit, camelCase hump, and the last
+                // capital of a run that a lowercase letter follows ("PDFViewer" -> PDF Viewer).
+                boolean hump = type == 2 && (prev == 1 || prev == 2 && nextIsLower(text, d, i, j));
+                if (prev == 0 || (type == 3) != (prev == 3) || hump) {
+                    if (words == w.length) w = java.util.Arrays.copyOf(w, words * 2);
+                    w[words++] = len;
+                }
+                char lc = Character.toLowerCase(ch);
+                char code;
+                if (lc >= 'a' && lc <= 'z') code = T9.charAt(lc - 'a');
+                else if (type == 3) {
+                    int dv = Character.digit(ch, 10);
+                    code = dv >= 0 ? DIGIT_KEY.charAt(dv) : '?';
+                } else code = '?';
+                if (len == c.length) {
+                    c = java.util.Arrays.copyOf(c, len * 2);
+                    p = java.util.Arrays.copyOf(p, len * 2);
+                }
+                c[len] = code;
+                p[len] = i;
+                len++;
+                prev = type;
+            }
         }
         codes = java.util.Arrays.copyOf(c, len);
         pos = java.util.Arrays.copyOf(p, len);
         ws = java.util.Arrays.copyOf(w, words);
         splitCode = sc < 0 ? len : sc;
         splitWord = sw < 0 ? words : sw;
+    }
+
+    private static final String FOLD_FROM = "ßıøłđæœþðħŧŋĸſØŁĐÆŒÞÐĦŦŊ";
+    private static final String[] FOLD_TO = {"ss", "i", "o", "l", "d", "ae", "oe", "th", "d", "h", "t", "n", "k", "s",
+            "O", "L", "D", "Ae", "Oe", "Th", "D", "H", "T", "N"};
+
+    /** A non-ASCII char as ASCII-like letters: NFKD (accents, ligatures, full-width) plus a few by hand. */
+    private static String fold(char ch) {
+        int f = FOLD_FROM.indexOf(ch);
+        if (f >= 0) return FOLD_TO[f];
+        if (!Character.isLetterOrDigit(ch) && !isMark(ch)) return null;
+        String d = Normalizer.normalize(String.valueOf(ch), Normalizer.Form.NFKD);
+        // Some CJK compatibility ideographs decompose to a surrogate pair: keep the original.
+        for (int k = 0; k < d.length(); k++) if (Character.isSurrogate(d.charAt(k))) return null;
+        return d;
+    }
+
+    private static boolean isMark(char ch) {
+        int t = Character.getType(ch);
+        return t == Character.NON_SPACING_MARK || t == Character.COMBINING_SPACING_MARK || t == Character.ENCLOSING_MARK;
+    }
+
+    /** Is the letter after (char i of text, folded char j of d) a lowercase letter? */
+    private static boolean nextIsLower(String text, String d, int i, int j) {
+        if (d != null && j + 1 < d.length()) return Character.isLowerCase(d.charAt(j + 1));
+        for (int k = i + 1; k < text.length(); k++) {
+            char ch = text.charAt(k);
+            if (ch >= 128 && isMark(ch)) continue;
+            return Character.isLowerCase(ch);
+        }
+        return false;
     }
 
     static char digitFor(char ch) {
@@ -177,8 +221,8 @@ final class App {
     int match(char[] q, int n) {
         if (n == 0) return 0;
         if (ws.length == 0) return -1;
-        if (at(0, q, n)) return 0;
-        for (int i = 1; i < ws.length; i++) if (at(ws[i], q, n)) return 1;
+        if (splitWord > 0 && at(0, q, n)) return 0; // label start (not the alias of an empty label)
+        for (int i = splitWord > 0 ? 1 : 0; i < ws.length; i++) if (at(ws[i], q, n)) return 1;
         if (chain0(q, n, null)) return 2;
         if (n >= 3) for (int s = 1; s + n <= splitCode; s++) if (inWord(s, n) && at(s, q, n)) return 3;
         return -1;
@@ -228,7 +272,7 @@ final class App {
         int start = -1;
         if (tier == 0) start = 0;
         else if (tier == 1) {
-            for (int i = 1; i < ws.length; i++) if (at(ws[i], q, n)) { start = ws[i]; break; }
+            for (int i = splitWord > 0 ? 1 : 0; i < ws.length; i++) if (at(ws[i], q, n)) { start = ws[i]; break; }
         } else if (tier == 2) {
             chain0(q, n, hl);
             return;
