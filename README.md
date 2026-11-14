@@ -10,6 +10,9 @@ I used [AppDialer](https://play.google.com/store/apps/details?id=name.pilgr.appd
 assistant. It is not maintained any more, so I wrote this replacement. It keeps only the T9 search (apps and settings
 pages) and focuses on speed, size and a small RAM and CPU footprint.
 
+**It opens only 10 ms slower than an empty app (103 vs 93 ms), and uses only 9 MB more RAM (18 vs 9 MB).** The empty
+app is a test app that only shows the same card, so almost all of the open time is Android's own work.
+
 - About 29 KB APK. Plain Java, no libraries, no AndroidX.
 - The whole UI is one custom `View`: no layouts, no adapters.
 - Drawn in software: for a panel this small it is faster than starting a GPU context and uses far less memory.
@@ -40,8 +43,15 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
 
 "Cold" means the process was not running; "warm" means it was still in memory.
 
-For comparison, an empty app that only shows the same card: cold 93 ms, warm 44 ms, 9 MB while open, 13 MB after
-close. So almost all of the open time is Android's own work.
+| | Empty app (the limit) | T9 App Launcher 1.8.0 |
+|---|---:|---:|
+| Cold open, time | 93 ms | 103 ms |
+| Warm open, time | 44 ms | 42 ms |
+| RAM while open | 9 MB | 18 MB |
+| RAM after close | 13 MB | 22 MB |
+
+The empty app is a test app that only shows the same card: the least any app with this window can cost. Both were
+measured right after each other, the same way as above.
 
 ## How it works
 
