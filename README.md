@@ -50,8 +50,8 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
 | RAM while open | 9 MB | 18 MB |
 | RAM after close | 13 MB | 22 MB |
 
-The empty app is a test app that shows an empty card and does nothing: the least any app with this window can cost. Both were
-measured right after each other, the same way as above.
+The empty app is a test app that shows an empty card and does nothing: the least any app with this window can
+cost. Both were measured right after each other, the same way as above.
 
 ## How it works
 
