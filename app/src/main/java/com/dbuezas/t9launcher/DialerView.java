@@ -237,7 +237,7 @@ final class DialerView extends View implements Store.Listener {
         int clear = bg & 0x00FFFFFF;
         fadeL.setShader(new android.graphics.LinearGradient(0, 0, fadeW, 0, bg, clear, android.graphics.Shader.TileMode.CLAMP));
         fadeR.setShader(new android.graphics.LinearGradient(w - fadeW, 0, w, 0, clear, bg, android.graphics.Shader.TileMode.CLAMP));
-        cellW = panelW / 3.5f; // the half app shows the row scrolls
+        cellW = panelW / 3f; // the edge fade and the scroll bar show the row scrolls
         iconSize = store.iconPx; // drawn 1:1, no scaling
         labelY = panelT + 12 * dp + iconSize + 22 * dp;
         lineH = 18 * dp;
