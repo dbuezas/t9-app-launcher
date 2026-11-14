@@ -43,7 +43,7 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
 
 "Cold" means the process was not running; "warm" means it was still in memory.
 
-| | Empty app (the limit) | T9 App Launcher 1.8.0 |
+| | Empty app (the limit) | T9 App Launcher 1.7.0 |
 |---|---:|---:|
 | Cold open, time | 93 ms | 103 ms |
 | Warm open, time | 44 ms | 42 ms |
