@@ -47,6 +47,10 @@ final class App {
     int tier;
     double rank;
 
+    // Row animation (DialerView): where it was drawn in the last search, and how far its slide starts from its slot.
+    float animX, animDx;
+    int animVer;
+
     // Draw cache.
     /** Two-line layouts of the label and of the alias, cached per width. */
     final Lines labelLines = new Lines(), aliasLines = new Lines();

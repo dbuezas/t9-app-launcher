@@ -84,6 +84,12 @@ final class DialerView extends View implements Store.Listener {
     /** Highlight cache key. Static: App objects outlive this view, so it must never repeat. */
     private static int version;
     private final ArrayList<App> results = new ArrayList<>();
+    /** Typing slides the row to its new order: kept apps from where they were, new ones from the right. */
+    private static final float ANIM_MS = 120;
+    /** Apps that stop matching fade out where they were, faster than the slide. */
+    private static final float FADE_MS = 80;
+    private long animStart;
+    private final ArrayList<App> leaving = new ArrayList<>();
 
     // Touch state.
     private static final int T_NONE = 0, T_KEY = 1, T_RESULT = 2, T_DRAG = 3, T_OUTSIDE = 4;
@@ -150,7 +156,21 @@ final class DialerView extends View implements Store.Listener {
     }
 
     private void search(boolean resetScroll) {
+        search(resetScroll, false);
+    }
+
+    private void search(boolean resetScroll, boolean animate) {
         App[] apps = store.apps;
+        // Remember where each app is drawn now (mid-slide too), so the next order can start from there.
+        int oldVer = version;
+        float k = animLeft();
+        for (int i = 0, n = results.size(); i < n; i++) {
+            App a = results.get(i);
+            a.animX = i * cellW - scrollX + a.animDx * k;
+            a.animVer = oldVer;
+        }
+        leaving.clear();
+        if (animate) leaving.addAll(results);
         results.clear();
         // The list may change under a finger: never launch a stale index.
         removeCallbacks(longPress);
@@ -173,7 +193,36 @@ final class DialerView extends View implements Store.Listener {
         } else {
             clampScroll();
         }
+        animStart = 0;
+        if (animate && cellW > 0) {
+            // Never from further than one row width away: new apps come in from just right of the row.
+            float view = panelR - panelL;
+            for (int i = 0, n = results.size(); i < n; i++) {
+                App a = results.get(i);
+                float to = i * cellW - scrollX;
+                float from = a.animVer == oldVer ? a.animX : to + view;
+                a.animDx = Math.max(-view, Math.min(view, from - to));
+                a.animVer = version; // still shown: not leaving
+            }
+            for (int i = leaving.size() - 1; i >= 0; i--) {
+                App a = leaving.get(i);
+                if (a.animVer != oldVer || a.animX >= view || a.animX + cellW <= 0) leaving.remove(i);
+            }
+            animStart = android.os.SystemClock.uptimeMillis();
+        }
         invalidate();
+    }
+
+    /** How much of the slide is left: 1 at the start, 0 when done (ease-out). */
+    private float animLeft() {
+        if (animStart == 0) return 0;
+        float p = (android.os.SystemClock.uptimeMillis() - animStart) / ANIM_MS;
+        if (p >= 1) {
+            animStart = 0;
+            return 0;
+        }
+        float q = 1 - p;
+        return q * q * q;
     }
 
     private void type(int key) {
@@ -190,7 +239,7 @@ final class DialerView extends View implements Store.Listener {
             if (qlen == query.length) return;
             query[qlen++] = (char) ('1' + key);
         }
-        search();
+        search(true, true);
     }
 
     /** Hardware keyboard: letters and digits type, Del removes, Enter launches. */
@@ -198,7 +247,7 @@ final class DialerView extends View implements Store.Listener {
         if (keyCode == android.view.KeyEvent.KEYCODE_DEL) {
             if (qlen > 0) {
                 qlen--;
-                search();
+                search(true, true);
             }
             return true;
         }
@@ -318,12 +367,30 @@ final class DialerView extends View implements Store.Listener {
             String s = qlen == 0 ? "Loading apps…" : "No match";
             c.drawText(s, (panelL + panelR - labelPaint.measureText(s)) / 2, panelT + 60 * dp, labelPaint);
         }
-        int first = Math.max(0, (int) (scrollX / cellW));
-        int last = Math.min(n - 1, (int) ((scrollX + panelR - panelL) / cellW));
+        float view = panelR - panelL;
+        float k = animLeft();
+        if (k > 0) postInvalidateOnAnimation();
+        // While sliding, an app may be drawn up to one row width away from its slot.
+        float reach = k > 0 ? view : 0;
+        int first = Math.max(0, (int) ((scrollX - reach) / cellW));
+        int last = Math.min(n - 1, (int) ((scrollX + view + reach) / cellW));
         float textMax = cellW - 8 * dp;
+        float fade = k > 0 ? 1 - (android.os.SystemClock.uptimeMillis() - animStart) / FADE_MS : 0;
+        if (fade <= 0) leaving.clear();
+        for (int i = 0, m = leaving.size(); i < m; i++) {
+            App a = leaving.get(i);
+            float x = panelL + a.animX;
+            int sc = c.saveLayerAlpha(x, panelT, x + cellW, resultsB, (int) (fade * 255));
+            if (a.icon != null) {
+                c.drawBitmap(a.icon, Math.round(x + (cellW - iconSize) / 2), Math.round(panelT + 12 * dp), iconPaint);
+            }
+            drawLabel(c, a, x, textMax);
+            c.restoreToCount(sc);
+        }
         for (int i = first; i <= last; i++) {
             App a = results.get(i);
-            float x = panelL + i * cellW - scrollX;
+            float x = panelL + i * cellW - scrollX + (k > 0 ? a.animDx * k : 0);
+            if (x >= panelR || x + cellW <= panelL) continue;
             if (i == pressedResult) {
                 linePaint.setColor(press);
                 tmpF.set(x + 4 * dp, panelT + 4 * dp, x + cellW - 4 * dp, resultsB - 10 * dp);
@@ -340,7 +407,7 @@ final class DialerView extends View implements Store.Listener {
         if (scrollX < maxScroll()) c.drawRect(panelR - fadeW, panelT, panelR, resultsB, fadeR);
         c.restore();
         // Scroll bar: a faint track and a thumb showing the visible part of the row.
-        float total = n * cellW, view = panelR - panelL;
+        float total = n * cellW;
         if (total > view) {
             // Centered between the second label line and the top of the key digits.
             float labelBottom = labelY + lineH + labelPaint.descent();
@@ -459,6 +526,8 @@ final class DialerView extends View implements Store.Listener {
                 if (y < panelT) {
                     touch = T_OUTSIDE;
                 } else if (y < resultsB) {
+                    animStart = 0; // taps always go to the final places: show them at once
+                    leaving.clear();
                     if (!scroller.isFinished()) {
                         // A tap on a moving row only stops it: never open what happens to be under the finger.
                         scroller.forceFinished(true);
