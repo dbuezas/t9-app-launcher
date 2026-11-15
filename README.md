@@ -13,7 +13,7 @@ pages) and focuses on speed, size and a small RAM and CPU footprint.
 **It opens only 10 ms slower than an empty app (103 vs 93 ms), and uses only 9 MB more RAM (18 vs 9 MB).** The empty
 app is a test app that shows an empty card and does nothing, so almost all of the open time is Android's own work.
 
-- About 29 KB APK. Plain Java, no libraries, no AndroidX.
+- About 30 KB APK. Plain Java, no libraries, no AndroidX.
 - The whole UI is one custom `View`: no layouts, no adapters.
 - Drawn in software: for a panel this small it is faster than starting a GPU context and uses far less memory.
 - On my Pixel 8: opens in about 40 ms when the process is warm and 100 ms from cold, with about 19 MB of RAM (see
@@ -66,6 +66,8 @@ cost. Both were measured right after each other, the same way as above.
 - Words also start at capitals inside a name (`8823` → You**Tube**, `8439` → PDF**View**er). Accents and special
   letters count as their plain letters (`38772` → **Fußb**all, `67378` → **Øresu**nd, `ﬁ` as `fi`).
 - The matched letters are shown in blue.
+- While typing, the row slides to its new order in 120 ms: apps that still match move to their new place, new ones
+  come in from the right, and the others fade out. A touch on the row ends the slide at once.
 - What I opened most recently from here comes first; then the best matches, apps before settings pages.
 - Tap a result to open it. Long-press an app to open its App info. A tap on the row while it still moves only stops
   it. T9 App Launcher lists itself too, so its App info is one long-press away (a tap just closes the panel).
