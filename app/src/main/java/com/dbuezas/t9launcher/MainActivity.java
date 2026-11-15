@@ -14,6 +14,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        if (archiveStatus(getIntent())) return;
         store = Store.get(this);
         store.onOpen();
         look = lookOf(getResources().getConfiguration());
@@ -121,6 +122,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (archiveStatus(intent)) return;
         store.onOpen();
         view.reset();
     }
@@ -129,7 +131,7 @@ public final class MainActivity extends Activity {
     protected void onStop() {
         super.onStop();
         // Never linger in the background: the next gesture starts clean.
-        if (!isChangingConfigurations()) {
+        if (!isChangingConfigurations() && store != null) {
             store.onHidden();
             finish();
         }
@@ -137,7 +139,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        if (store.listener == view) store.listener = null;
+        if (store != null && store.listener == view) store.listener = null;
         super.onDestroy();
     }
 
@@ -165,6 +167,191 @@ public final class MainActivity extends Activity {
             return;
         }
         finish();
+    }
+
+    // ---------------------------------------------------------------- long-press menu
+
+    private static final String ACTION_ARCHIVE_STATUS = "com.dbuezas.t9launcher.ARCHIVE_STATUS";
+    private static final String PLAY = "com.android.vending";
+
+    private static final int M_RESTORE = 0, M_ARCHIVE = 1, M_STORE = 2, M_INFO = 3, M_PIN = 4, M_UNINSTALL = 5, M_SHARE = 6;
+    private static final String[] M_LABEL = {"Restore", "Archive", "Play Store", "App info", "Add to home screen", "Uninstall",
+            "Share"};
+    /** An invisible view over the pressed result: Android's popup menu opens next to it. */
+    private android.view.View anchor;
+
+    /** Long-press: Android's popup menu next to the app. cell is in view coordinates. False if it has no items. */
+    boolean showMenu(App a, Rect cell, Rect bounds) {
+        int[] items = new int[7];
+        int n = menuFor(a, items);
+        if (n == 0) return false;
+        if (anchor == null) {
+            anchor = new android.view.View(this);
+            addContentView(anchor, new android.widget.FrameLayout.LayoutParams(1, 1));
+        }
+        android.widget.FrameLayout.LayoutParams lp = (android.widget.FrameLayout.LayoutParams) anchor.getLayoutParams();
+        lp.width = cell.width();
+        lp.height = cell.height();
+        lp.leftMargin = cell.left;
+        lp.topMargin = cell.top;
+        anchor.setLayoutParams(lp);
+        // Light or dark like the phone (the panel's own theme is always dark).
+        android.content.Context themed = new android.view.ContextThemeWrapper(this, android.os.Build.VERSION.SDK_INT >= 29
+                ? android.R.style.Theme_DeviceDefault_DayNight : android.R.style.Theme_DeviceDefault);
+        android.widget.PopupMenu pm = new android.widget.PopupMenu(themed, anchor);
+        for (int k = 0; k < n; k++) {
+            CharSequence t = M_LABEL[items[k]];
+            if (items[k] == M_UNINSTALL) {
+                android.text.SpannableString red = new android.text.SpannableString(t);
+                red.setSpan(new android.text.style.ForegroundColorSpan(0xFFE5534B), 0, t.length(), 0);
+                t = red;
+            }
+            pm.getMenu().add(0, items[k], k, t);
+        }
+        pm.setOnMenuItemClickListener(item -> {
+            menuAction(a, item.getItemId(), bounds);
+            return true;
+        });
+        pm.setOnDismissListener(m -> view.menuClosed());
+        anchor.post(pm::show); // after the anchor moved
+        return true;
+    }
+
+    /** The link that Share sends for the app of the open menu. */
+    private String shareUrl;
+
+    /** The store page the app came from. This app itself is not on a store: its GitHub page, unless a store installed it. */
+    private static String shareUrl(String pkg, String installer, boolean self) {
+        if (installer != null && (installer.contains("fdroid") || installer.equals("com.looker.droidify"))) {
+            return "https://f-droid.org/packages/" + pkg;
+        }
+        if (self && !PLAY.equals(installer)) return "https://github.com/dbuezas/t9-app-launcher";
+        return "https://play.google.com/store/apps/details?id=" + pkg;
+    }
+
+    /** Fills out[] with the menu items for this app and returns how many. */
+    private int menuFor(App a, int[] out) {
+        int n = 0;
+        if (a.setting) {
+            out[n++] = M_PIN; // a settings page can sit on the home screen too
+            return n;
+        }
+        String pkg = a.cn.getPackageName();
+        boolean me = a.user.equals(android.os.Process.myUserHandle());
+        boolean self = me && pkg.equals(getPackageName());
+        boolean system = false;
+        String installer = null;
+        if (me) {
+            try {
+                android.content.pm.PackageManager pm = getPackageManager();
+                // Archived apps are only found with this flag (MATCH_ARCHIVED_PACKAGES, Android 15).
+                android.content.pm.ApplicationInfo ai = android.os.Build.VERSION.SDK_INT >= 33
+                        ? pm.getApplicationInfo(pkg, android.content.pm.PackageManager.ApplicationInfoFlags.of(1L << 32))
+                        : pm.getApplicationInfo(pkg, 0);
+                system = (ai.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0;
+                if (android.os.Build.VERSION.SDK_INT >= 30) installer = pm.getInstallSourceInfo(pkg).getInstallingPackageName();
+            } catch (Exception ignored) {
+            }
+        }
+        boolean fromPlay = PLAY.equals(installer);
+        shareUrl = shareUrl(pkg, installer, self);
+        if (a.archived()) out[n++] = M_RESTORE;
+        else if (me && fromPlay && android.os.Build.VERSION.SDK_INT >= 35) out[n++] = M_ARCHIVE;
+        if (!self || fromPlay) out[n++] = M_STORE;
+        out[n++] = M_SHARE;
+        out[n++] = M_INFO;
+        if (me && !a.archived()) out[n++] = M_PIN;
+        if (me && !self && !system) out[n++] = M_UNINSTALL;
+        return n;
+    }
+
+    private void menuAction(App a, int item, Rect bounds) {
+        String pkg = a.cn.getPackageName();
+        try {
+            switch (item) {
+                case M_RESTORE:
+                    // Opening an archived app restores it only for the home screen app: ask the installer directly.
+                    install("requestUnarchive", pkg);
+                    break;
+                case M_ARCHIVE:
+                    install("requestArchive", pkg);
+                    break;
+                case M_STORE:
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=" + pkg))
+                                .setPackage(PLAY));
+                    } catch (android.content.ActivityNotFoundException e) {
+                        startActivity(new Intent(Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://play.google.com/store/apps/details?id=" + pkg)));
+                    }
+                    break;
+                case M_SHARE:
+                    startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain")
+                            .putExtra(Intent.EXTRA_SUBJECT, a.label)
+                            .putExtra(Intent.EXTRA_TEXT, a.label + "\n" + shareUrl), null));
+                    break;
+                case M_INFO:
+                    store.showAppInfo(a, bounds);
+                    break;
+                case M_PIN:
+                    pin(a);
+                    break;
+                case M_UNINSTALL:
+                    startActivity(new Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:" + pkg)));
+                    break;
+            }
+        } catch (Exception e) {
+            android.widget.Toast.makeText(this, "Not possible: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** Asks the home screen to add a shortcut that opens this app or settings page. */
+    private void pin(App a) {
+        android.content.pm.ShortcutManager sm = getSystemService(android.content.pm.ShortcutManager.class);
+        if (sm == null || !sm.isRequestPinShortcutSupported()) throw new IllegalStateException("the home screen does not allow it");
+        Intent open = new Intent(Intent.ACTION_MAIN).setComponent(a.cn)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+        if (!a.setting) open.addCategory(Intent.CATEGORY_LAUNCHER);
+        android.content.pm.ShortcutInfo.Builder b = new android.content.pm.ShortcutInfo.Builder(this, "open:" + a.key)
+                .setShortLabel(a.label.isEmpty() && a.alias != null ? a.alias : a.label)
+                .setIntent(open);
+        if (a.icon != null) b.setIcon(android.graphics.drawable.Icon.createWithBitmap(a.icon));
+        sm.requestPinShortcut(b.build(), null);
+    }
+
+    /** PackageInstaller.requestArchive / requestUnarchive (Android 15): the answer comes back here, see archiveStatus. */
+    private void install(String method, String pkg) throws Exception {
+        android.app.PendingIntent pi = android.app.PendingIntent.getActivity(this, 0,
+                new Intent(this, MainActivity.class).setAction(ACTION_ARCHIVE_STATUS),
+                android.app.PendingIntent.FLAG_MUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT);
+        android.content.pm.PackageInstaller inst = getPackageManager().getPackageInstaller();
+        try {
+            inst.getClass().getMethod(method, String.class, android.content.IntentSender.class)
+                    .invoke(inst, pkg, pi.getIntentSender());
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            throw e.getCause() instanceof Exception ? (Exception) e.getCause() : e;
+        }
+    }
+
+    /** The archive or restore answer: show Android's confirmation, or say why it failed. True if it was one. */
+    private boolean archiveStatus(Intent i) {
+        if (i == null || !ACTION_ARCHIVE_STATUS.equals(i.getAction())) return false;
+        @SuppressWarnings("deprecation") // the typed version needs Android 13
+        Intent confirm = i.getParcelableExtra(Intent.EXTRA_INTENT);
+        if (confirm != null) {
+            startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } else {
+            // Archive answers in EXTRA_STATUS, restore in EXTRA_UNARCHIVE_STATUS; 0 is success in both.
+            int st = i.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS,
+                    i.getIntExtra("android.content.pm.extra.UNARCHIVE_STATUS", 0));
+            if (st != 0) {
+                String msg = i.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE);
+                android.widget.Toast.makeText(this, "Failed" + (msg != null ? ": " + msg : " (" + st + ")"),
+                        android.widget.Toast.LENGTH_LONG).show();
+            }
+        }
+        finish();
+        return true;
     }
 
     void showInfo(App a, Rect bounds) {

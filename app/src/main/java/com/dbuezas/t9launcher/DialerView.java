@@ -93,6 +93,8 @@ final class DialerView extends View implements Store.Listener {
 
     // Touch state.
     private static final int T_NONE = 0, T_KEY = 1, T_RESULT = 2, T_DRAG = 3, T_OUTSIDE = 4;
+    /** The app whose long-press menu is open: it stays highlighted. */
+    private App menuApp;
     private int touch = T_NONE, pressedKey = -1, pressedResult = -1;
     private float downX, downY, lastX, scrollX;
     /** The finger that pressed the results row (drag, tap, long-press). */
@@ -172,6 +174,7 @@ final class DialerView extends View implements Store.Listener {
         leaving.clear();
         if (animate) leaving.addAll(results);
         results.clear();
+        menuApp = null; // its App may be gone or replaced
         // The list may change under a finger: never launch a stale index.
         removeCallbacks(longPress);
         pressedResult = -1;
@@ -391,7 +394,7 @@ final class DialerView extends View implements Store.Listener {
             App a = results.get(i);
             float x = panelL + i * cellW - scrollX + (k > 0 ? a.animDx * k : 0);
             if (x >= panelR || x + cellW <= panelL) continue;
-            if (i == pressedResult) {
+            if (i == pressedResult || a == menuApp) {
                 linePaint.setColor(press);
                 tmpF.set(x + 4 * dp, panelT + 4 * dp, x + cellW - 4 * dp, resultsB - 10 * dp);
                 c.drawRoundRect(tmpF, 20 * dp, 20 * dp, linePaint);
@@ -426,6 +429,12 @@ final class DialerView extends View implements Store.Listener {
      * Label in up to two centered lines: broken between words when that fits, else at any
      * character (no space wasted); the second line is ellipsized. Matched letters are drawn in the accent color.
      */
+    /** The long-press menu closed: drop the highlight. */
+    void menuClosed() {
+        menuApp = null;
+        invalidate();
+    }
+
     private void drawLabel(Canvas c, App a, float x, float max) {
         a.highlight(query, qlen, version);
         // A settings page matched only by its class-name words shows those words ("Bluetooth").
@@ -627,7 +636,14 @@ final class DialerView extends View implements Store.Listener {
         touch = T_NONE;
         pressedResult = -1;
         invalidate();
-        act.showInfo(results.get(i), bounds(i));
+        App a = results.get(i);
+        // The cell in view coordinates, for the menu's place, and on screen, for the app's open animation.
+        float x = panelL + i * cellW - scrollX;
+        Rect cell = new Rect((int) x, (int) panelT, (int) (x + cellW), (int) resultsB);
+        if (act.showMenu(a, cell, new Rect(bounds(i)))) {
+            menuApp = a;
+            invalidate();
+        }
     }
 
     private Rect bounds(int i) {
