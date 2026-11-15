@@ -13,7 +13,7 @@ pages) and focuses on speed, size and a small RAM and CPU footprint.
 **It opens only 10 ms slower than an empty app (103 vs 93 ms), and uses only 9 MB more RAM (18 vs 9 MB).** The empty
 app is a test app that shows an empty card and does nothing, so almost all of the open time is Android's own work.
 
-- About 30 KB APK. Plain Java, no libraries, no AndroidX.
+- About 33 KB APK. Plain Java, no libraries, no AndroidX.
 - The whole UI is one custom `View`: no layouts, no adapters.
 - Drawn in software: for a panel this small it is faster than starting a GPU context and uses far less memory.
 - On my Pixel 8: opens in about 40 ms when the process is warm and 100 ms from cold, with about 19 MB of RAM (see
@@ -24,9 +24,13 @@ app is a test app that shows an empty card and does nothing, so almost all of th
   name loads their files (70–130 MB for about a second), and that memory is given back as soon as the scan ends.
 - Only the icons on screen are loaded, on their own thread, so a rescan never delays them. At most 48 stay in memory.
   When the panel closes, it keeps the icons of my 8 most recent apps, so the next open draws them at once.
-- No network. One permission, `QUERY_ALL_PACKAGES` (see all installed apps), granted at install without a prompt.
-  Without it, Android shows an app only the apps that have a launcher icon. An archived app has no APK, so no icon
-  entry, and it would be missing from the list.
+- No network. Three permissions, all granted at install without a prompt:
+  - `QUERY_ALL_PACKAGES` (see all installed apps). Without it, Android shows an app only the apps that have a launcher
+    icon. An archived app has no APK, so no icon entry, and it would be missing from the list.
+  - `REQUEST_DELETE_PACKAGES` (ask to uninstall or archive an app), for those two items in the long-press menu.
+    Android still asks before it removes anything.
+  - `REQUEST_INSTALL_PACKAGES` (ask to restore an archived app), for Restore in the long-press menu: Android lets
+    only the home screen app restore an app by opening it. Android asks first, then Google Play downloads it.
 
 ## Performance
 
@@ -71,8 +75,11 @@ cost. Both were measured right after each other, the same way as above.
 - While typing, the row slides to its new order in 120 ms: apps that still match move to their new place, new ones
   come in from the right, and the others fade out. A touch on the row ends the slide at once.
 - What I opened most recently from here comes first; then the best matches, apps before settings pages.
-- Tap a result to open it. Long-press an app to open its App info. A tap on the row while it still moves only stops
-  it. T9 App Launcher lists itself too, so its App info is one long-press away (a tap just closes the panel).
+- Tap a result to open it. A tap on the row while it still moves only stops it.
+- Long-press a result for a menu: Archive or Restore, Play Store, Share (the Play Store link), App info, Add to home
+  screen, Uninstall. Each shows only where it works: e.g. no Uninstall for system apps, only Add to home screen for
+  settings pages. It is Android's own popup menu, loaded only on a long-press. T9 App Launcher lists itself too, so
+  its App info is one long-press away.
 - Apps from the work profile are included.
 - Archived apps (Android 15+) are listed too, with their cloud icon. A tap opens their App info, which has the
   Restore button.
