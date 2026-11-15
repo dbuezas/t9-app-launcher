@@ -23,6 +23,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
+      - name: Matching tests
+        run: scripts/test.sh
+
       - name: Decode keystore
         if: github.event_name != 'pull_request'
         env:

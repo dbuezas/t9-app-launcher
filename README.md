@@ -112,6 +112,7 @@ in GitHub Actions (see the workflow artifacts).
 ./install.sh                # build and install on the connected device
 scripts/screenshots.sh      # retake the README screenshots on the phone
 scripts/bench.sh            # cold/warm open time, CPU time and RAM (median of 8 each)
+scripts/test.sh             # matching tests on the computer (CI runs them on every push)
 scripts/release-notes.sh v1.7.0  # release notes: the commits since the previous tag (CI uses it)
 ```
 
