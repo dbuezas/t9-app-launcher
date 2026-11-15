@@ -25,7 +25,7 @@ final class App {
     final String alias;
     final int aliasStart;      // index of alias in the indexed text, -1 if none
     final String sortKey;
-    final long stamp;          // APK modification time; invalidates the cached icon
+    final long stamp;          // APK modification time; invalidates the cached icon. 0: archived (no APK)
 
     /** T9 digit of every indexed char, all words joined. '?' = letter that has no T9 key. */
     final char[] codes;
@@ -65,6 +65,11 @@ final class App {
     int hlVersion = -1;
 
     /** From a saved/scanned row. Returns null for a malformed id. */
+    /** Archived (Android 15+): the APK is removed until it is restored, so there is no file time. */
+    boolean archived() {
+        return !setting && stamp == 0;
+    }
+
     static App of(String id, long serial, UserHandle user, String label, long stamp) {
         boolean setting = id.startsWith("!");
         ComponentName cn = ComponentName.unflattenFromString(setting ? id.substring(1) : id);

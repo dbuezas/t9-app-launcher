@@ -151,6 +151,10 @@ public final class MainActivity extends Activity {
             finish(); // this panel itself: it is already open
             return;
         }
+        if (a.archived()) {
+            showInfo(a, bounds); // App info has the restore button
+            return;
+        }
         try {
             Bundle opts = ActivityOptions.makeScaleUpAnimation(view, bounds.left, bounds.top - viewTop(),
                     bounds.width(), bounds.height()).toBundle();

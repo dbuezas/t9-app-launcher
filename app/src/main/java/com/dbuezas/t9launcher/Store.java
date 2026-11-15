@@ -178,13 +178,18 @@ final class Store {
         return sb.toString();
     }
 
+    /** The APK's change time. 0 for an archived app: it has no APK (its sourceDir is null) until it is restored. */
+    static long fileTime(String path) {
+        return path == null ? 0 : new File(path).lastModified();
+    }
+
     /** Number of apps and a hash of their names and file times: changes on install, update, removal. */
     private String profileSummary(UserHandle u) {
         try {
             List<LauncherActivityInfo> list = la.getActivityList(null, u);
             long h = 0;
             for (LauncherActivityInfo i : list) {
-                h += i.getComponentName().hashCode() * 31L + new File(i.getApplicationInfo().sourceDir).lastModified();
+                h += i.getComponentName().hashCode() * 31L + fileTime(i.getApplicationInfo().sourceDir);
             }
             return list.size() + "-" + Long.toHexString(h);
         } catch (Exception e) {
@@ -339,7 +344,7 @@ final class Store {
             for (LauncherActivityInfo i : list) {
                 ComponentName cn = i.getComponentName();
                 String label = String.valueOf(i.getLabel()).replace('\t', ' ').replace('\n', ' ').trim();
-                long stamp = new File(i.getApplicationInfo().sourceDir).lastModified();
+                long stamp = fileTime(i.getApplicationInfo().sourceDir);
                 rows.add(new String[]{cn.flattenToShortString(), Long.toString(serial), Long.toString(stamp), label});
                 rowUsers.add(u);
             }
@@ -386,7 +391,7 @@ final class Store {
             if (pi.activities == null) return false;
             String appLabel = String.valueOf(pm.getApplicationLabel(app));
             String serial = Long.toString(um.getSerialNumberForUser(me));
-            String stamp = Long.toString(new File(app.sourceDir).lastModified());
+            String stamp = Long.toString(fileTime(app.sourceDir));
             HashSet<String> seen = new HashSet<>();
             outer:
             for (android.content.pm.ActivityInfo ai : pi.activities) {
