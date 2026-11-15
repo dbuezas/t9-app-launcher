@@ -24,7 +24,9 @@ app is a test app that shows an empty card and does nothing, so almost all of th
   name loads their files (70–130 MB for about a second), and that memory is given back as soon as the scan ends.
 - Only the icons on screen are loaded, on their own thread, so a rescan never delays them. At most 48 stay in memory.
   When the panel closes, it keeps the icons of my 8 most recent apps, so the next open draws them at once.
-- No permissions, no network.
+- No network. One permission, `QUERY_ALL_PACKAGES` (see all installed apps), granted at install without a prompt.
+  Without it, Android shows an app only the apps that have a launcher icon. An archived app has no APK, so no icon
+  entry, and it would be missing from the list.
 
 ## Performance
 
@@ -72,6 +74,8 @@ cost. Both were measured right after each other, the same way as above.
 - Tap a result to open it. Long-press an app to open its App info. A tap on the row while it still moves only stops
   it. T9 App Launcher lists itself too, so its App info is one long-press away (a tap just closes the panel).
 - Apps from the work profile are included.
+- Archived apps (Android 15+) are listed too, with their cloud icon. A tap opens their App info, which has the
+  Restore button.
 - Settings pages are searchable too, read from the phone's own Settings app: every page it lets other apps open, with
   its translated title (about 160 on my Pixel 8). Pages that need an app to be chosen first are left out. The words of
   the page's internal class name count too, but only when one of them starts with what you typed: Pixel titles the
