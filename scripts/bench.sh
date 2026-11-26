@@ -14,6 +14,12 @@ close() { "$ADB" shell input keyevent BACK; sleep 0.8; }
 med() { tr ' ' '\n' | grep . | sort -n | awk '{a[NR]=$1} END{print a[int((NR+1)/2)]}'; }
 # CPU ms of the main process: utime + stime, 100 Hz ticks
 cpu() { "$ADB" shell "pid=\$(pidof $P); [ -n \"\$pid\" ] && awk '{print (\$14+\$15)*10}' /proc/\$pid/stat || echo 0"; }
+# A run with the screen off or locked measures nothing useful: check before and after.
+awake() {
+    "$ADB" shell 'dumpsys power | grep -q "mWakefulness=Awake" && ! dumpsys window | grep -q "isKeyguardShowing=true"' ||
+        { echo "$L | INVALID: screen off or locked" >&2; exit 1; }
+}
+awake
 coldt=""; coldc=""
 for i in $(seq 8); do
     "$ADB" shell am force-stop "$P"; sleep 0.5
@@ -27,4 +33,5 @@ t >/dev/null; sleep 2
 open=$("$ADB" shell dumpsys meminfo "$P" | awk '/TOTAL PSS/{print $3}')
 close; sleep 3
 closed=$("$ADB" shell dumpsys meminfo "$P" | awk '/TOTAL PSS/{print $3}')
+awake
 echo "$L | cold $(echo $coldt | med) ms, cpu $(echo $coldc | med) ms | warm $(echo $warmt | med) ms, cpu $(echo $warmc | med) ms | RAM open $((open / 1024)) MB, closed $((closed / 1024)) MB"
