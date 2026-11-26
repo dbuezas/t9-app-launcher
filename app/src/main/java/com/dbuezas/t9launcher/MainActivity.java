@@ -14,7 +14,6 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        if (archiveStatus(getIntent())) return;
         store = Store.get(this);
         store.onOpen();
         look = lookOf(getResources().getConfiguration());
@@ -122,7 +121,6 @@ public final class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (archiveStatus(intent)) return;
         store.onOpen();
         view.reset();
     }
@@ -171,18 +169,17 @@ public final class MainActivity extends Activity {
 
     // ---------------------------------------------------------------- long-press menu
 
-    private static final String ACTION_ARCHIVE_STATUS = "com.dbuezas.t9launcher.ARCHIVE_STATUS";
     private static final String PLAY = "com.android.vending";
 
-    private static final int M_RESTORE = 0, M_ARCHIVE = 1, M_STORE = 2, M_INFO = 3, M_PIN = 4, M_UNINSTALL = 5, M_SHARE = 6;
-    private static final String[] M_LABEL = {"Restore", "Archive", "Play Store", "App info", "Add to home screen", "Uninstall",
-            "Share"};
+    // No Uninstall, Archive or Restore: App info has them, and their permissions made Play Protect call the app harmful.
+    private static final int M_STORE = 0, M_INFO = 1, M_PIN = 2, M_SHARE = 3;
+    private static final String[] M_LABEL = {"Play Store", "App info", "Add to home screen", "Share"};
     /** An invisible view over the pressed result: Android's popup menu opens next to it. */
     private android.view.View anchor;
 
     /** Long-press: Android's popup menu next to the app. cell is in view coordinates. False if it has no items. */
     boolean showMenu(App a, Rect cell, Rect bounds) {
-        int[] items = new int[7];
+        int[] items = new int[M_LABEL.length];
         int n = menuFor(a, items);
         if (n == 0) return false;
         if (anchor == null) {
@@ -200,13 +197,7 @@ public final class MainActivity extends Activity {
                 ? android.R.style.Theme_DeviceDefault_DayNight : android.R.style.Theme_DeviceDefault);
         android.widget.PopupMenu pm = new android.widget.PopupMenu(themed, anchor);
         for (int k = 0; k < n; k++) {
-            CharSequence t = M_LABEL[items[k]];
-            if (items[k] == M_UNINSTALL) {
-                android.text.SpannableString red = new android.text.SpannableString(t);
-                red.setSpan(new android.text.style.ForegroundColorSpan(0xFFE5534B), 0, t.length(), 0);
-                t = red;
-            }
-            pm.getMenu().add(0, items[k], k, t);
+            pm.getMenu().add(0, items[k], k, M_LABEL[items[k]]);
         }
         pm.setOnMenuItemClickListener(item -> {
             menuAction(a, item.getItemId(), bounds);
@@ -239,29 +230,19 @@ public final class MainActivity extends Activity {
         String pkg = a.cn.getPackageName();
         boolean me = a.user.equals(android.os.Process.myUserHandle());
         boolean self = me && pkg.equals(getPackageName());
-        boolean system = false;
         String installer = null;
-        if (me) {
+        if (me && android.os.Build.VERSION.SDK_INT >= 30) {
             try {
-                android.content.pm.PackageManager pm = getPackageManager();
-                // Archived apps are only found with this flag (MATCH_ARCHIVED_PACKAGES, Android 15).
-                android.content.pm.ApplicationInfo ai = android.os.Build.VERSION.SDK_INT >= 33
-                        ? pm.getApplicationInfo(pkg, android.content.pm.PackageManager.ApplicationInfoFlags.of(1L << 32))
-                        : pm.getApplicationInfo(pkg, 0);
-                system = (ai.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0;
-                if (android.os.Build.VERSION.SDK_INT >= 30) installer = pm.getInstallSourceInfo(pkg).getInstallingPackageName();
+                installer = getPackageManager().getInstallSourceInfo(pkg).getInstallingPackageName();
             } catch (Exception ignored) {
             }
         }
         boolean fromPlay = PLAY.equals(installer);
         shareUrl = shareUrl(pkg, installer, self);
-        if (a.archived()) out[n++] = M_RESTORE;
-        else if (me && fromPlay && android.os.Build.VERSION.SDK_INT >= 35) out[n++] = M_ARCHIVE;
         if (!self || fromPlay) out[n++] = M_STORE;
         out[n++] = M_SHARE;
         out[n++] = M_INFO;
         if (me && !a.archived()) out[n++] = M_PIN;
-        if (me && !self && !system) out[n++] = M_UNINSTALL;
         return n;
     }
 
@@ -269,13 +250,6 @@ public final class MainActivity extends Activity {
         String pkg = a.cn.getPackageName();
         try {
             switch (item) {
-                case M_RESTORE:
-                    // Opening an archived app restores it only for the home screen app: ask the installer directly.
-                    install("requestUnarchive", pkg);
-                    break;
-                case M_ARCHIVE:
-                    install("requestArchive", pkg);
-                    break;
                 case M_STORE:
                     try {
                         startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=" + pkg))
@@ -296,9 +270,6 @@ public final class MainActivity extends Activity {
                 case M_PIN:
                     pin(a);
                     break;
-                case M_UNINSTALL:
-                    startActivity(new Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:" + pkg)));
-                    break;
             }
         } catch (Exception e) {
             android.widget.Toast.makeText(this, "Not possible: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
@@ -317,41 +288,6 @@ public final class MainActivity extends Activity {
                 .setIntent(open);
         if (a.icon != null) b.setIcon(android.graphics.drawable.Icon.createWithBitmap(a.icon));
         sm.requestPinShortcut(b.build(), null);
-    }
-
-    /** PackageInstaller.requestArchive / requestUnarchive (Android 15): the answer comes back here, see archiveStatus. */
-    private void install(String method, String pkg) throws Exception {
-        android.app.PendingIntent pi = android.app.PendingIntent.getActivity(this, 0,
-                new Intent(this, MainActivity.class).setAction(ACTION_ARCHIVE_STATUS),
-                android.app.PendingIntent.FLAG_MUTABLE | android.app.PendingIntent.FLAG_UPDATE_CURRENT);
-        android.content.pm.PackageInstaller inst = getPackageManager().getPackageInstaller();
-        try {
-            inst.getClass().getMethod(method, String.class, android.content.IntentSender.class)
-                    .invoke(inst, pkg, pi.getIntentSender());
-        } catch (java.lang.reflect.InvocationTargetException e) {
-            throw e.getCause() instanceof Exception ? (Exception) e.getCause() : e;
-        }
-    }
-
-    /** The archive or restore answer: show Android's confirmation, or say why it failed. True if it was one. */
-    private boolean archiveStatus(Intent i) {
-        if (i == null || !ACTION_ARCHIVE_STATUS.equals(i.getAction())) return false;
-        @SuppressWarnings("deprecation") // the typed version needs Android 13
-        Intent confirm = i.getParcelableExtra(Intent.EXTRA_INTENT);
-        if (confirm != null) {
-            startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        } else {
-            // Archive answers in EXTRA_STATUS, restore in EXTRA_UNARCHIVE_STATUS; 0 is success in both.
-            int st = i.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS,
-                    i.getIntExtra("android.content.pm.extra.UNARCHIVE_STATUS", 0));
-            if (st != 0) {
-                String msg = i.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE);
-                android.widget.Toast.makeText(this, "Failed" + (msg != null ? ": " + msg : " (" + st + ")"),
-                        android.widget.Toast.LENGTH_LONG).show();
-            }
-        }
-        finish();
-        return true;
     }
 
     void showInfo(App a, Rect bounds) {

@@ -24,13 +24,11 @@ app is a test app that shows an empty card and does nothing, so almost all of th
   name loads their files (70–130 MB for about a second), and that memory is given back as soon as the scan ends.
 - Only the icons on screen are loaded, on their own thread, so a rescan never delays them. At most 48 stay in memory.
   When the panel closes, it keeps the icons of my 8 most recent apps, so the next open draws them at once.
-- No network. Three permissions, all granted at install without a prompt:
-  - `QUERY_ALL_PACKAGES` (see all installed apps). Without it, Android shows an app only the apps that have a launcher
-    icon. An archived app has no APK, so no icon entry, and it would be missing from the list.
-  - `REQUEST_DELETE_PACKAGES` (ask to uninstall or archive an app), for those two items in the long-press menu.
-    Android still asks before it removes anything.
-  - `REQUEST_INSTALL_PACKAGES` (ask to restore an archived app), for Restore in the long-press menu: Android lets
-    only the home screen app restore an app by opening it. Android asks first, then Google Play downloads it.
+- No network. One permission, granted at install without a prompt: `QUERY_ALL_PACKAGES` (see all installed apps).
+  Without it, Android shows an app only the apps that have a launcher icon. An archived app has no APK, so no icon
+  entry, and it would be missing from the list.
+- No Uninstall, Archive or Restore in the menu: App info has them. Their permissions (`REQUEST_DELETE_PACKAGES`,
+  `REQUEST_INSTALL_PACKAGES`) made Google Play Protect block the app as harmful when sideloaded.
 
 ## Performance
 
@@ -69,9 +67,8 @@ else: the least any app with this window can cost.
   come in from the right, and the others fade out. A touch on the row ends the slide at once.
 - What I opened most recently from here comes first; then the best matches, apps before settings pages.
 - Tap a result to open it. A tap on the row while it still moves only stops it.
-- Long-press a result for a menu: Archive or Restore, Play Store, Share (the Play Store link), App info, Add to home
-  screen, Uninstall. Each shows only where it works: e.g. no Uninstall for system apps, only Add to home screen for
-  settings pages. It is Android's own popup menu, loaded only on a long-press. T9 App Launcher lists itself too, so
+- Long-press a result for a menu: Play Store, Share (the Play Store link), App info, Add to home screen. Each shows
+  only where it works: e.g. only Add to home screen for settings pages. It is Android's own popup menu, loaded only on a long-press. T9 App Launcher lists itself too, so
   its App info is one long-press away.
 - Apps from the work profile are included.
 - Archived apps (Android 15+) are listed too, with their cloud icon. A tap opens their App info, which has the
