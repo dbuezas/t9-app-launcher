@@ -38,7 +38,7 @@ Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with
 `/proc/<pid>/stat` for the CPU time; RAM is the PSS from `dumpsys meminfo` ([scripts/bench.sh](scripts/bench.sh)).
 1.12.0 and the empty app were measured in turn, 5 times each, and the table shows the median.
 
-| | AppDialer Pro 7.5.1 | T9 App Launcher 1.0.0 | T9 App Launcher 1.12.0 | Empty app (the limit) |
+| | AppDialer Pro 7.5.1 | T9 App Launcher 1.0.0 | T9 App Launcher 1.12.0 | Empty popup app (minimum possible) |
 |---|---:|---:|---:|---:|
 | APK size | 2,203 KB | 21 KB | 33 KB | 8 KB |
 | Cold open, time | 124 ms | 105 ms | 94 ms | 91 ms |
