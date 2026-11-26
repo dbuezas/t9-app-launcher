@@ -10,13 +10,13 @@ I used [AppDialer](https://play.google.com/store/apps/details?id=name.pilgr.appd
 assistant. It is not maintained any more, so I wrote this replacement. It keeps only the T9 search (apps and settings
 pages) and focuses on speed, size and a small RAM and CPU footprint.
 
-**It opens only 10 ms slower than an empty app (103 vs 93 ms), and uses only 9 MB more RAM (18 vs 9 MB).** The empty
+**It opens only 3 ms slower than an empty app (94 vs 91 ms), and uses only 2 MB more RAM (12 vs 10 MB).** The empty
 app is a test app that shows an empty card and does nothing, so almost all of the open time is Android's own work.
 
 - About 33 KB APK. Plain Java, no libraries, no AndroidX.
 - The whole UI is one custom `View`: no layouts, no adapters.
 - Drawn in software: for a panel this small it is faster than starting a GPU context and uses far less memory.
-- On my Pixel 8: opens in about 40 ms when the process is warm and 100 ms from cold, with about 19 MB of RAM (see
+- On my Pixel 8: opens in about 33 ms when the process is warm and 94 ms from cold, with about 12 MB of RAM (see
   [Performance](#performance)).
 - The app list and the icons are cached on disk, so results show at once, even on a cold start.
 - The app list is only rescanned when Android reports a package change. That check runs in the background on every
@@ -35,29 +35,22 @@ app is a test app that shows an empty card and does nothing, so almost all of th
 ## Performance
 
 Measured on my Pixel 8 (Android 17): the median of 8 cold and 8 warm opens, with `am start -W` for the time and
-`/proc/<pid>/stat` for the CPU time; RAM is the PSS from `dumpsys meminfo`.
+`/proc/<pid>/stat` for the CPU time; RAM is the PSS from `dumpsys meminfo` ([scripts/bench.sh](scripts/bench.sh)).
+1.12.0 and the empty app were measured in turn, 5 times each, and the table shows the median.
 
-| | AppDialer Pro 7.5.1 | T9 App Launcher 1.0.0 | T9 App Launcher 1.1.0 | T9 App Launcher 1.2.0 | T9 App Launcher 1.6.0 |
-|---|---:|---:|---:|---:|---:|
-| APK size | 2,203 KB | 21 KB | 23 KB | 26 KB | 26 KB |
-| Cold open, time | 124 ms | 105 ms | 96 ms | 93 ms | 103 ms |
-| Cold open, CPU time | 250 ms | 170 ms | 50 ms | 50 ms | 50 ms |
-| Warm open, time | 61 ms | 54 ms | 42 ms | 35 ms | 38 ms |
-| Warm open, CPU time | 90 ms | 30 ms | 20 ms | 20 ms | 20 ms |
-| RAM while open | 119 MB | 36 MB | 18 MB | 18 MB | 19 MB |
-| RAM after close | 57 MB | 22 MB | 19 MB | 21 MB | 22 MB |
+| | AppDialer Pro 7.5.1 | T9 App Launcher 1.0.0 | T9 App Launcher 1.12.0 | Empty app (the limit) |
+|---|---:|---:|---:|---:|
+| APK size | 2,203 KB | 21 KB | 33 KB | 8 KB |
+| Cold open, time | 124 ms | 105 ms | 94 ms | 91 ms |
+| Cold open, CPU time | 250 ms | 170 ms | 50 ms | 50 ms |
+| Warm open, time | 61 ms | 54 ms | 33 ms | 32 ms |
+| Warm open, CPU time | 90 ms | 30 ms | 10 ms | 20 ms |
+| RAM while open | 119 MB | 36 MB | 12 MB | 10 MB |
+| RAM after close | 57 MB | 22 MB | 15 MB | 13 MB |
 
-"Cold" means the process was not running; "warm" means it was still in memory.
-
-| | Empty app (the limit) | T9 App Launcher 1.7.0 |
-|---|---:|---:|
-| Cold open, time | 93 ms | 103 ms |
-| Warm open, time | 44 ms | 42 ms |
-| RAM while open | 9 MB | 18 MB |
-| RAM after close | 13 MB | 22 MB |
-
-The empty app is a test app that shows an empty card and does nothing: the least any app with this window can
-cost. Both were measured right after each other, the same way as above.
+"Cold" means the process was not running; "warm" means it was still in memory. The empty app
+([test/empty-app](test/empty-app)) has the same window as T9 App Launcher and shows its card empty, with nothing
+else: the least any app with this window can cost.
 
 ## How it works
 

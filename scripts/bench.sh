@@ -2,8 +2,10 @@
 # Benchmarks an app on the connected phone: median of 8 cold and 8 warm opens.
 # usage: scripts/bench.sh [label] [package] [activity] [apk to install first]
 # defaults: this app. AppDialer: scripts/bench.sh AppDialer name.pilgr.appdialer.pro name.pilgr.appdialer.AppDialer
+# Empty app (build: ./gradlew -p test/empty-app assembleRelease):
+#   scripts/bench.sh Empty com.dbuezas.t9empty .MainActivity test/empty-app/build/outputs/apk/release/t9-empty-release.apk
 set -u
-ADB=/usr/local/share/android-commandlinetools/platform-tools/adb
+ADB=${ADB:-$(command -v adb || echo /usr/local/share/android-commandlinetools/platform-tools/adb)}
 export ANDROID_SERIAL="${ANDROID_SERIAL:-$("$ADB" devices | awk '$2=="device"{print $1; exit}')}"
 L=${1:-T9 App Launcher}; P=${2:-com.dbuezas.t9launcher}; A=${3:-.MainActivity}
 [ $# -ge 4 ] && { "$ADB" install -r "$4" >/dev/null || exit 1; }
