@@ -171,9 +171,9 @@ public final class MainActivity extends Activity {
 
     private static final String PLAY = "com.android.vending";
 
-    // No Uninstall, Archive or Restore: App info has them, and their permissions made Play Protect call the app harmful.
-    private static final int M_STORE = 0, M_INFO = 1, M_PIN = 2, M_SHARE = 3;
-    private static final String[] M_LABEL = {"Play Store", "App info", "Add to home screen", "Share"};
+    // No Archive or Restore: App info has them, and REQUEST_INSTALL_PACKAGES made Play Protect call the app harmful.
+    private static final int M_STORE = 0, M_INFO = 1, M_PIN = 2, M_SHARE = 3, M_UNINSTALL = 4;
+    private static final String[] M_LABEL = {"Play Store", "App info", "Add to home screen", "Share", "Uninstall"};
     /** An invisible view over the pressed result: Android's popup menu opens next to it. */
     private android.view.View anchor;
 
@@ -197,7 +197,13 @@ public final class MainActivity extends Activity {
                 ? android.R.style.Theme_DeviceDefault_DayNight : android.R.style.Theme_DeviceDefault);
         android.widget.PopupMenu pm = new android.widget.PopupMenu(themed, anchor);
         for (int k = 0; k < n; k++) {
-            pm.getMenu().add(0, items[k], k, M_LABEL[items[k]]);
+            CharSequence t = M_LABEL[items[k]];
+            if (items[k] == M_UNINSTALL) {
+                android.text.SpannableString red = new android.text.SpannableString(t);
+                red.setSpan(new android.text.style.ForegroundColorSpan(0xFFE5534B), 0, t.length(), 0);
+                t = red;
+            }
+            pm.getMenu().add(0, items[k], k, t);
         }
         pm.setOnMenuItemClickListener(item -> {
             menuAction(a, item.getItemId(), bounds);
@@ -230,10 +236,17 @@ public final class MainActivity extends Activity {
         String pkg = a.cn.getPackageName();
         boolean me = a.user.equals(android.os.Process.myUserHandle());
         boolean self = me && pkg.equals(getPackageName());
+        boolean system = false;
         String installer = null;
-        if (me && android.os.Build.VERSION.SDK_INT >= 30) {
+        if (me) {
             try {
-                installer = getPackageManager().getInstallSourceInfo(pkg).getInstallingPackageName();
+                android.content.pm.PackageManager pm = getPackageManager();
+                // Archived apps are only found with this flag (MATCH_ARCHIVED_PACKAGES, Android 15).
+                android.content.pm.ApplicationInfo ai = android.os.Build.VERSION.SDK_INT >= 33
+                        ? pm.getApplicationInfo(pkg, android.content.pm.PackageManager.ApplicationInfoFlags.of(1L << 32))
+                        : pm.getApplicationInfo(pkg, 0);
+                system = (ai.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0;
+                if (android.os.Build.VERSION.SDK_INT >= 30) installer = pm.getInstallSourceInfo(pkg).getInstallingPackageName();
             } catch (Exception ignored) {
             }
         }
@@ -243,6 +256,7 @@ public final class MainActivity extends Activity {
         out[n++] = M_SHARE;
         out[n++] = M_INFO;
         if (me && !a.archived()) out[n++] = M_PIN;
+        if (me && !self && !system) out[n++] = M_UNINSTALL;
         return n;
     }
 
@@ -269,6 +283,9 @@ public final class MainActivity extends Activity {
                     break;
                 case M_PIN:
                     pin(a);
+                    break;
+                case M_UNINSTALL:
+                    startActivity(new Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:" + pkg)));
                     break;
             }
         } catch (Exception e) {

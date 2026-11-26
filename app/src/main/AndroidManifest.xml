@@ -4,6 +4,8 @@
     <!-- Lets LauncherApps see every launchable app (Android 11+ package visibility). -->
     <!-- Archived apps (Android 15+) have no APK, so no intent filters: the queries below cannot see them. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- Uninstall in the long-press menu: Android asks before it removes anything. -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
